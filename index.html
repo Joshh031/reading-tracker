@@ -82,9 +82,32 @@
           try { data[k] = JSON.parse(localStorage.getItem(k) || 'null'); } catch { data[k] = null; }
         });
         const code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-        // Show code in a prompt so user can copy
-        const chunks = code.match(/.{1,60}/g).join('\n');
-        prompt('COPY THIS EXPORT CODE — paste into Settings > Import in your new app:', code);
+        
+        // Use clipboard API - no truncation
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(code).then(() => {
+            alert('EXPORT CODE COPIED TO CLIPBOARD (' + code.length + ' characters)\n\nPaste into Notes now, then import in your new app via Settings.');
+          }).catch(() => fallbackCopy(code));
+        } else {
+          fallbackCopy(code);
+        }
+      }
+      
+      function fallbackCopy(code) {
+        const el = document.createElement('textarea');
+        el.value = code;
+        el.style.position = 'fixed';
+        el.style.opacity = '0';
+        document.body.appendChild(el);
+        el.focus();
+        el.select();
+        try {
+          document.execCommand('copy');
+          alert('EXPORT CODE COPIED (' + code.length + ' characters)\n\nPaste into Notes now.');
+        } catch(e) {
+          alert('Could not auto-copy. Code length: ' + code.length + '\n\nPlease use Settings > Export in the app instead.');
+        }
+        document.body.removeChild(el);
       }
 
       // Register service worker
