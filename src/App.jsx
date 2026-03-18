@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const GENRES = [
   "Biography", "Business", "Economics", "Finance", "History",
@@ -120,11 +120,18 @@ export default function ReadingTracker() {
     })();
   }, []);
 
+  const entriesRef = useRef(entries);
+  const todayEntryRef = useRef(todayEntry);
+  useEffect(() => { entriesRef.current = entries; }, [entries]);
+  useEffect(() => { todayEntryRef.current = todayEntry; }, [todayEntry]);
+
   const saveEntry = useCallback(async (update) => {
-    const newEntries = { ...entries, [today]: { ...todayEntry, ...update } };
+    const currentEntries = entriesRef.current;
+    const currentTodayEntry = todayEntryRef.current;
+    const newEntries = { ...currentEntries, [today]: { ...currentTodayEntry, ...update } };
     setEntries(newEntries);
     await storage_set(STORAGE_KEYS.entries, newEntries);
-  }, [entries, today, todayEntry]);
+  }, [today]);
 
   const saveBooks = async (books) => {
     setCurrentBooks(books);
@@ -250,6 +257,7 @@ export default function ReadingTracker() {
       padding: "0 0 80px 0",
     }}>
       <style>{`
+        html, body, #root { background: #0a0a0a; margin: 0; padding: 0; }
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400&display=swap');
         * { box-sizing: border-box; }
         ::placeholder { color: #3a3a3a !important; }
