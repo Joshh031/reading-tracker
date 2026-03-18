@@ -80,6 +80,9 @@ export default function ReadingTracker() {
   const [searchQuery, setSearchQuery] = useState("");
   const [calMonth, setCalMonth] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() });
   const [newPodcast, setNewPodcast] = useState("");
+  const [importCode, setImportCode] = useState("");
+  const [importMsg, setImportMsg] = useState("");
+  const [exportCode, setExportCode] = useState("");
   const [editBooks, setEditBooks] = useState(false);
   const [library, setLibrary] = useState([]);
   const [showAddBook, setShowAddBook] = useState(false);
@@ -194,6 +197,31 @@ export default function ReadingTracker() {
     const pods = e.podcastEntries || (e.podcast ? [{ podcast: e.podcast }] : []);
     return pods.some(p => p.podcast);
   }).length;
+
+  // Export all data as base64 code
+  const handleExport = () => {
+    const data = {};
+    Object.values(STORAGE_KEYS).forEach(k => {
+      try { data[k] = JSON.parse(localStorage.getItem(k) || 'null'); } catch { data[k] = null; }
+    });
+    const code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    setExportCode(code);
+  };
+
+  // Import data from base64 code
+  const handleImport = async () => {
+    try {
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(importCode.trim()))));
+      if (decoded[STORAGE_KEYS.entries]) { setEntries(decoded[STORAGE_KEYS.entries]); await storage_set(STORAGE_KEYS.entries, decoded[STORAGE_KEYS.entries]); }
+      if (decoded[STORAGE_KEYS.currentBooks]) { setCurrentBooks(decoded[STORAGE_KEYS.currentBooks]); await storage_set(STORAGE_KEYS.currentBooks, decoded[STORAGE_KEYS.currentBooks]); }
+      if (decoded[STORAGE_KEYS.podcasts]) { setPodcasts(decoded[STORAGE_KEYS.podcasts]); await storage_set(STORAGE_KEYS.podcasts, decoded[STORAGE_KEYS.podcasts]); }
+      if (decoded[STORAGE_KEYS.library]) { setLibrary(decoded[STORAGE_KEYS.library]); await storage_set(STORAGE_KEYS.library, decoded[STORAGE_KEYS.library]); }
+      setImportMsg("✓ DATA IMPORTED SUCCESSFULLY — ALL YOUR ENTRIES ARE RESTORED");
+      setImportCode("");
+    } catch(e) {
+      setImportMsg("✗ INVALID CODE — PLEASE TRY AGAIN");
+    }
+  };
 
   // Library filtered list
   const filteredLibrary = Array.isArray(library) ? library
@@ -803,6 +831,41 @@ export default function ReadingTracker() {
                     setNewPodcast("");
                   }
                 }}>Add</button>
+              </div>
+            </div>
+
+            {/* Export / Import */}
+            <div className="card">
+              <div className="section-label">Data Export / Import</div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", letterSpacing: 2, marginBottom: 10 }}>EXPORT — generate a code to back up all your data</div>
+                <button className="save-btn" onClick={handleExport} style={{ width: "100%", padding: "12px" }}>GENERATE EXPORT CODE</button>
+                {exportCode && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#c8a96e", letterSpacing: 2, marginBottom: 6 }}>COPY THIS CODE AND SAVE IT IN NOTES:</div>
+                    <textarea
+                      readOnly
+                      value={exportCode}
+                      onClick={e => e.target.select()}
+                      style={{ width: "100%", background: "#0d0d0d", border: "1px solid #c8a96e44", color: "#888", fontFamily: "'DM Mono', monospace", fontSize: 10, padding: "10px", resize: "none", height: 80, letterSpacing: 0.5 }}
+                    />
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", letterSpacing: 1, marginTop: 4 }}>Tap the box to select all, then copy</div>
+                  </div>
+                )}
+              </div>
+              <div style={{ borderTop: "1px solid #1e1e1e", paddingTop: 20 }}>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", letterSpacing: 2, marginBottom: 10 }}>IMPORT — paste a previously generated export code</div>
+                <textarea
+                  className="field-input"
+                  rows={3}
+                  placeholder="Paste export code here..."
+                  value={importCode}
+                  onChange={e => { setImportCode(e.target.value); setImportMsg(""); }}
+                />
+                <button className="save-btn" onClick={handleImport} style={{ width: "100%", padding: "12px", marginTop: 10 }}>RESTORE FROM CODE</button>
+                {importMsg && (
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, letterSpacing: 1, marginTop: 10, color: importMsg.startsWith("✓") ? "#5a9a5a" : "#c84a4a" }}>{importMsg}</div>
+                )}
               </div>
             </div>
 
