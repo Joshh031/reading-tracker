@@ -842,14 +842,32 @@ export default function ReadingTracker() {
                 <button className="save-btn" onClick={handleExport} style={{ width: "100%", padding: "12px" }}>GENERATE EXPORT CODE</button>
                 {exportCode && (
                   <div style={{ marginTop: 12 }}>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#c8a96e", letterSpacing: 2, marginBottom: 6 }}>COPY THIS CODE AND SAVE IT IN NOTES:</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#c8a96e", letterSpacing: 2, marginBottom: 6 }}>YOUR EXPORT CODE:</div>
                     <textarea
                       readOnly
                       value={exportCode}
-                      onClick={e => e.target.select()}
-                      style={{ width: "100%", background: "#0d0d0d", border: "1px solid #c8a96e44", color: "#888", fontFamily: "'DM Mono', monospace", fontSize: 10, padding: "10px", resize: "none", height: 80, letterSpacing: 0.5 }}
+                      style={{ width: "100%", background: "#0d0d0d", border: "1px solid #c8a96e44", color: "#888", fontFamily: "'DM Mono', monospace", fontSize: 10, padding: "10px", resize: "none", height: 100, letterSpacing: 0.5, wordBreak: "break-all" }}
                     />
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", letterSpacing: 1, marginTop: 4 }}>Tap the box to select all, then copy</div>
+                    <button
+                      className="save-btn"
+                      style={{ width: "100%", padding: "12px", marginTop: 8, background: "#1a1a1a", color: "#c8a96e", border: "1px solid #c8a96e44" }}
+                      onClick={() => {
+                        if (navigator.clipboard) {
+                          navigator.clipboard.writeText(exportCode).then(() => alert("COPIED TO CLIPBOARD — paste into Notes now"));
+                        } else {
+                          const el = document.createElement("textarea");
+                          el.value = exportCode;
+                          document.body.appendChild(el);
+                          el.select();
+                          document.execCommand("copy");
+                          document.body.removeChild(el);
+                          alert("COPIED TO CLIPBOARD — paste into Notes now");
+                        }
+                      }}
+                    >COPY TO CLIPBOARD</button>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", letterSpacing: 1, marginTop: 6 }}>
+                      Code is {exportCode.length} characters — use COPY TO CLIPBOARD button above
+                    </div>
                   </div>
                 )}
               </div>
