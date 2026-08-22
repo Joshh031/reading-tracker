@@ -2,62 +2,54 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Reading Log" />
-    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="theme-color" content="#08090b" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/icon.svg" />
     <title>Reading Log</title>
     <style>
-      html, body { background: #0a0a0a; margin: 0; padding: 0; }
+      html, body { background: #08090b; margin: 0; padding: 0; }
       #recovery-banner {
         display: none;
         position: fixed;
         top: 0; left: 0; right: 0;
-        background: #c8a96e;
-        color: #0a0a0a;
+        background: #d8b36a;
+        color: #08090b;
         z-index: 9999;
         padding: 14px 16px;
-        font-family: 'DM Mono', monospace;
+        font-family: monospace;
         font-size: 12px;
         letter-spacing: 1px;
         text-align: center;
       }
       #recovery-banner button {
         margin-top: 8px;
-        background: #0a0a0a;
-        color: #c8a96e;
+        background: #08090b;
+        color: #d8b36a;
         border: none;
         padding: 8px 16px;
-        font-family: 'DM Mono', monospace;
+        font-family: monospace;
         font-size: 11px;
         letter-spacing: 2px;
         cursor: pointer;
         display: block;
         width: 100%;
       }
-      #recovery-banner .dismiss {
-        background: transparent;
-        color: #0a0a0a;
-        font-size: 10px;
-        margin-top: 4px;
-        opacity: 0.6;
-      }
+      #recovery-banner .dismiss { background: transparent; color: #08090b; font-size: 10px; margin-top: 4px; opacity: .6; }
     </style>
   </head>
   <body>
-    <!-- Recovery Banner -->
     <div id="recovery-banner">
-      <div>⚠ EXISTING DATA FOUND — EXPORT BEFORE CONTINUING</div>
-      <button onclick="generateExportCode()">GENERATE EXPORT CODE</button>
-      <button class="dismiss" onclick="document.getElementById('recovery-banner').style.display='none'">Dismiss (data stays here)</button>
+      <div>EXISTING LOCAL DATA FOUND — BACKUP AVAILABLE</div>
+      <button onclick="generateExportCode()">COPY BACKUP CODE</button>
+      <button class="dismiss" onclick="document.getElementById('recovery-banner').style.display='none'">Dismiss</button>
     </div>
-
     <div id="root"></div>
-
     <script>
-      // Recovery banner logic — runs before React loads
       (function() {
         const KEYS = ['rt_entries', 'rt_current_books', 'rt_podcasts', 'rt_library'];
         const hasData = KEYS.some(k => {
@@ -65,62 +57,29 @@
             const v = localStorage.getItem(k);
             if (!v) return false;
             const parsed = JSON.parse(v);
-            if (k === 'rt_entries') return Object.keys(parsed).length > 0;
+            if (k === 'rt_entries') return parsed && Object.keys(parsed).length > 0;
             if (k === 'rt_library') return Array.isArray(parsed) && parsed.length > 0;
-            return true;
+            return Boolean(parsed);
           } catch { return false; }
         });
-        if (hasData) {
-          document.getElementById('recovery-banner').style.display = 'block';
-        }
+        if (hasData) document.getElementById('recovery-banner').style.display = 'block';
       })();
-
       function generateExportCode() {
         const KEYS = ['rt_entries', 'rt_current_books', 'rt_podcasts', 'rt_library'];
         const data = {};
-        KEYS.forEach(k => {
-          try { data[k] = JSON.parse(localStorage.getItem(k) || 'null'); } catch { data[k] = null; }
-        });
+        KEYS.forEach(k => { try { data[k] = JSON.parse(localStorage.getItem(k) || 'null'); } catch { data[k] = null; } });
         const code = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-        
-        // Use clipboard API - no truncation
-        if (navigator.clipboard) {
-          navigator.clipboard.writeText(code).then(() => {
-            alert('EXPORT CODE COPIED TO CLIPBOARD (' + code.length + ' characters)\n\nPaste into Notes now, then import in your new app via Settings.');
-          }).catch(() => fallbackCopy(code));
-        } else {
-          fallbackCopy(code);
-        }
+        if (navigator.clipboard) navigator.clipboard.writeText(code).then(() => alert('Backup code copied to clipboard.')).catch(() => fallbackCopy(code));
+        else fallbackCopy(code);
       }
-      
       function fallbackCopy(code) {
         const el = document.createElement('textarea');
-        el.value = code;
-        el.style.position = 'fixed';
-        el.style.opacity = '0';
-        document.body.appendChild(el);
-        el.focus();
-        el.select();
-        try {
-          document.execCommand('copy');
-          alert('EXPORT CODE COPIED (' + code.length + ' characters)\n\nPaste into Notes now.');
-        } catch(e) {
-          alert('Could not auto-copy. Code length: ' + code.length + '\n\nPlease use Settings > Export in the app instead.');
-        }
+        el.value = code; el.style.position = 'fixed'; el.style.opacity = '0'; document.body.appendChild(el); el.focus(); el.select();
+        try { document.execCommand('copy'); alert('Backup code copied.'); } catch(e) { alert('Could not auto-copy the backup code.'); }
         document.body.removeChild(el);
       }
-
-      // Register service worker
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then(reg => {
-            // Force update check on every load
-            reg.update();
-          });
-        });
-      }
+      if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').then(reg => reg.update()).catch(() => {}));
     </script>
-
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
