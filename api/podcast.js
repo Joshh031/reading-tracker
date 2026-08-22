@@ -1,5 +1,5 @@
 function cleanText(s='') {
-  return s
+  return String(s)
     .replace(/<script[\s\S]*?<\/script>/gi,' ')
     .replace(/<style[\s\S]*?<\/style>/gi,' ')
     .replace(/<!\[CDATA\[|\]\]>/g,' ')
@@ -15,22 +15,25 @@ function cleanText(s='') {
     .trim();
 }
 
-async function fetchText(url) {
+async function fetchJson(url) {
   const r = await fetch(url, {
     redirect:'follow',
     headers:{
-      'user-agent':'Mozilla/5.0 (compatible; ReadingLog/1.4)',
-      'accept':'text/html,application/xml,text/plain,*/*'
+      'user-agent':'ReadingLog/1.5',
+      'accept':'application/json,text/plain,*/*'
     }
+  });
+  if (!r.ok) throw new Error(`Could not fetch JSON source (${r.status})`);
+  return r.json();
+}
+
+async function fetchText(url) {
+  const r = await fetch(url, {
+    redirect:'follow',
+    headers:{'user-agent':'ReadingLog/1.5','accept':'application/xml,text/plain,*/*'}
   });
   if (!r.ok) throw new Error(`Could not fetch source (${r.status})`);
   return {text:await r.text(),finalUrl:r.url||url};
-}
-
-async function fetchJson(url) {
-  const r = await fetch(url,{redirect:'follow',headers:{'user-agent':'ReadingLog/1.4'}});
-  if(!r.ok) throw new Error(`Could not fetch catalog (${r.status})`);
-  return r.json();
 }
 
 function appleIds(url){
@@ -56,15 +59,15 @@ function transcriptFromRssItem(item,baseUrl){
 }
 
 async function resolveApple(url){
-  const ids=appleIds(url);if(!ids)return null;
+  const ids=appleIds(url); if(!ids) return null;
   const api=`https://itunes.apple.com/lookup?id=${encodeURIComponent(ids.collection)}&entity=podcastEpisode&limit=200&country=US`;
   const data=await fetchJson(api);
   const results=Array.isArray(data?.results)?data.results:[];
   const show=results.find(x=>x.wrapperType==='collection'||x.kind==='podcast')||{};
   const episode=results.find(x=>String(x.trackId||'')===ids.episode&&x.kind==='podcast-episode');
-  if(!episode)throw new Error('Apple returned the show, but not this exact episode.');
+  if(!episode) throw new Error('Apple returned the show, but not this exact episode.');
 
-  let transcriptUrl='',transcript='';
+  let transcriptUrl='', transcript='';
   const feedUrl=show.feedUrl||episode.feedUrl||'';
   if(feedUrl){
     try{
@@ -78,7 +81,7 @@ async function resolveApple(url){
           try{
             const tr=await fetchText(transcriptUrl);
             transcript=cleanText(tr.text).slice(0,150000);
-            if(transcript.length<500)transcript='';
+            if(transcript.length<500) transcript='';
           }catch{}
         }
       }
@@ -95,133 +98,158 @@ async function resolveApple(url){
     image:episode.artworkUrl600||episode.artworkUrl100||show.artworkUrl600||'',
     publishedDate:episode.releaseDate||'',
     durationMs:episode.trackTimeMillis||0,
-    feedUrl,transcriptUrl,transcript
+    feedUrl, transcriptUrl, transcript
   };
 }
 
-const STOP=new Set(['the','and','that','with','from','this','will','what','when','who','why','are','for','into','about','your','their','they','have','has','was','were','but','not','you','its','how','can','should','would','could','our','out','all']);
-const INSIGHT_KEYS=['billion','million','months','years','october','march','valuation','credit','debt','margin','profit','saas','cloud','model','security','china','microsoft','meta','apple','hyperscaler','neocloud','continuous','learning','open source','bubble','correction','capital','gpu','compute','router','fireworks','baseten','private equity','demand','dislocation'];
+const STOP=new Set(['the','and','that','with','from','this','will','what','when','who','why','are','for','into','about','your','their','they','have','has','was','were','but','not','you','its','how','can','should','would','could','our','out','all','episode']);
+const SIGNAL=['billion','million','months','years','october','march','valuation','credit','debt','margin','profit','saas','cloud','model','security','china','microsoft','meta','apple','hyperscaler','neocloud','continuous','learning','open source','bubble','correction','capital','gpu','compute','router','fireworks','baseten','private equity','demand','dislocation','treasur','markup','short','buy','hold'];
 
 function words(s=''){
-  return s.toLowerCase().replace(/[^a-z0-9%$ ]/g,' ').split(/\s+/).filter(w=>w.length>=4&&!STOP.has(w));
+  return String(s).toLowerCase().replace(/[^a-z0-9%$ ]/g,' ').split(/\s+/).filter(w=>w.length>=4&&!STOP.has(w));
 }
-function titleTokens(s=''){return [...new Set(words(s))].slice(0,28)}
-function scoreText(s=''){
-  const l=s.toLowerCase();
-  return INSIGHT_KEYS.reduce((n,k)=>n+(l.includes(k)?2:0),0)+(/\d/.test(s)?3:0)+(s.includes('$')||s.includes('%')?2:0);
+function titleTokens(s=''){return [...new Set(words(s))].slice(0,30)}
+function scoreSignal(s=''){
+  const l=String(s).toLowerCase();
+  return SIGNAL.reduce((n,k)=>n+(l.includes(k)?2:0),0)+(/\d/.test(s)?3:0)+(l.includes('$')||l.includes('%')?2:0);
 }
-function sentences(s=''){
-  return cleanText(s).split(/(?<=[.!?])\s+/).map(x=>x.trim()).filter(x=>x.length>=45&&x.length<=750&&!x.endsWith('?'));
+function declarativeSentences(s=''){
+  return String(s)
+    .replace(/^[-*#>\s]+/gm,'')
+    .replace(/\[(.*?)\]\([^)]*\)/g,'$1')
+    .split(/(?<=[.!?])\s+/)
+    .map(x=>x.replace(/\s+/g,' ').trim())
+    .filter(x=>x.length>=45&&x.length<=800&&!x.endsWith('?'));
 }
-function sentenceSimilarity(a,b){
-  const A=new Set(words(a)),B=new Set(words(b));
-  let common=0;for(const w of A)if(B.has(w))common++;
-  return common;
+function similarity(a,b){
+  const A=new Set(words(a)), B=new Set(words(b));
+  let n=0; for(const w of A) if(B.has(w)) n++;
+  return n;
 }
 
-function extractHrefCandidates(html=''){
+function normalizeSearchResults(data){
+  if(Array.isArray(data)) return data;
+  for(const k of ['results','episodes','items','data']) if(Array.isArray(data?.[k])) return data[k];
+  return [];
+}
+
+function resultScore(item,source,guest){
+  const hay=[item?.title,item?.title_orig,item?.dek,item?.summary,item?.people,item?.show,item?.show_id].flat().filter(Boolean).join(' ').toLowerCase();
+  const tokens=titleTokens(source.episodeTitle);
+  let score=tokens.reduce((n,t)=>n+(hay.includes(t)?1:0),0);
+  if(guest&&hay.includes(guest.toLowerCase())) score+=10;
+  if(hay.includes('20vc')) score+=2;
+  const appleDate=String(source.publishedDate||'').slice(0,10);
+  const itemDate=String(item?.date||item?.published_at||'').slice(0,10);
+  if(appleDate&&itemDate&&appleDate===itemDate) score+=8;
+  return score;
+}
+
+async function findBidClubEpisode(source,guest){
+  const queries=[guest, source.episodeTitle.split('|')[0].slice(0,110), '20VC '+guest].filter(Boolean);
+  let best=null;
+  for(const q of queries){
+    try{
+      const data=await fetchJson(`https://bidclub.ai/api/v1/search?q=${encodeURIComponent(q)}`);
+      for(const item of normalizeSearchResults(data)){
+        const slug=item?.slug||item?.episode_slug||item?.id||'';
+        if(!slug) continue;
+        const score=resultScore(item,source,guest);
+        if(!best||score>best.score) best={item,slug,score};
+      }
+    }catch(e){console.log('bidclub_search_error',q,e?.message||String(e))}
+  }
+  if(!best||best.score<8){
+    console.log('bidclub_no_match',{guest,title:source.episodeTitle,bestScore:best?.score||0});
+    return null;
+  }
+  try{
+    const detail=await fetchJson(`https://bidclub.ai/api/v1/episodes/${encodeURIComponent(best.slug)}`);
+    console.log('bidclub_match',{slug:best.slug,score:best.score,title:detail?.title||best.item?.title||''});
+    return {...best.item,...detail,slug:best.slug};
+  }catch(e){
+    console.log('bidclub_detail_error',best.slug,e?.message||String(e));
+    return null;
+  }
+}
+
+function markdownSections(md=''){
+  const lines=String(md).split(/\r?\n/);
+  const sections=[];
+  let title='', body=[];
+  const flush=()=>{const text=body.join(' ').replace(/\s+/g,' ').trim();if(text)sections.push({title,text});body=[]};
+  for(const line of lines){
+    const h=line.match(/^#{1,4}\s+(.+)/);
+    if(h){flush();title=h[1].trim();continue}
+    const b=line.match(/^\s*[-*]\s+(.+)/);
+    if(b){body.push(b[1].trim());continue}
+    if(line.trim()) body.push(line.trim());
+  }
+  flush();
+  return sections;
+}
+
+function buildDeepTakeaways(episode){
+  const tldr=String(episode?.tldr_md||episode?.tldr||'');
+  const digest=String(episode?.digest_md||episode?.digest||'');
+  const transcript=String(episode?.transcript_md||episode?.transcript||'');
+  const candidates=[];
+
+  for(const sec of [...markdownSections(tldr),...markdownSections(digest)]){
+    const ss=declarativeSentences(sec.text);
+    if(ss.length>=3){
+      const text=ss.slice(0,5).join(' ');
+      candidates.push({text,score:scoreSignal(text)+(sec.title?2:0)});
+    }
+  }
+
+  // If a strong digest section is only 1-2 sentences, expand it with nearby transcript sentences on the same topic.
+  const transcriptPool=declarativeSentences(transcript).filter(s=>scoreSignal(s)>=2).slice(0,800);
+  for(const sec of [...markdownSections(tldr),...markdownSections(digest)]){
+    const base=declarativeSentences(sec.text);
+    if(!base.length||base.length>=3) continue;
+    const seed=base.join(' ');
+    const related=transcriptPool
+      .map(s=>({s,rel:similarity(seed,s),score:scoreSignal(s)}))
+      .filter(x=>x.rel>=2)
+      .sort((a,b)=>(b.rel*5+b.score)-(a.rel*5+a.score));
+    const combo=[...base];
+    for(const x of related){if(!combo.includes(x.s))combo.push(x.s);if(combo.length>=4)break}
+    if(combo.length>=3){
+      const text=combo.slice(0,5).join(' ');
+      candidates.push({text,score:scoreSignal(text)+3});
+    }
+  }
+
+  candidates.sort((a,b)=>b.score-a.score);
   const out=[];
-  const re=/href=["']([^"']*\/e\/[^"'#?]+)["']/gi;
-  for(const m of html.matchAll(re)){
-    let href=m[1];
-    try{href=new URL(href,'https://bidclub.ai/').href}catch{continue}
-    const i=m.index||0;
-    const context=cleanText(html.slice(Math.max(0,i-1800),Math.min(html.length,i+2600)));
-    out.push({href,context});
+  for(const c of candidates){
+    if(c.text.length<240) continue;
+    if(out.some(prev=>similarity(prev,c.text)>=14)) continue;
+    out.push(c.text);
+    if(out.length===5) break;
   }
   return out;
-}
-
-async function discoverBidClubUrl(source){
-  try{
-    const home=await fetchText('https://bidclub.ai/');
-    const tokens=titleTokens(source.episodeTitle);
-    const guest=(source.description.match(/^([A-Z][A-Za-z .'-]{2,80})\s+(?:is|joins|joined|has been|was)\b/)||[])[1]||'';
-    let best=null;
-    for(const c of extractHrefCandidates(home.text)){
-      const lower=c.context.toLowerCase();
-      let score=tokens.reduce((n,t)=>n+(lower.includes(t)?1:0),0);
-      if(guest&&lower.includes(guest.toLowerCase()))score+=5;
-      if(lower.includes('20vc'))score+=1;
-      if(!best||score>best.score)best={...c,score};
-    }
-    if(best&&best.score>=6)return best.href;
-  }catch(e){console.log('bidclub_discovery_error',e?.message||String(e))}
-  return '';
-}
-
-function relatedBundle(seed,pool){
-  const used=new Set([seed]);
-  const bundle=[seed];
-  const ranked=pool
-    .filter(s=>s!==seed)
-    .map(s=>({s,rel:sentenceSimilarity(seed,s),score:scoreText(s)}))
-    .filter(x=>x.rel>=2||x.score>=4)
-    .sort((a,b)=>(b.rel*4+b.score)-(a.rel*4+a.score));
-  for(const x of ranked){
-    if(used.has(x.s))continue;
-    bundle.push(x.s);used.add(x.s);
-    if(bundle.length===4)break;
-  }
-  return bundle.length>=3?bundle.join(' '):'';
-}
-
-function deepTakeawaysFromHtml(html=''){
-  const blocks=[];
-  for(const m of html.matchAll(/<(?:li|p)[^>]*>([\s\S]*?)<\/(?:li|p)>/gi)){
-    const t=cleanText(m[1]);
-    if(t.length>=80)blocks.push(t);
-  }
-  const pool=[...new Set(blocks.flatMap(sentences))]
-    .filter(s=>scoreText(s)>=2)
-    .slice(0,220);
-  const seeds=[...pool].sort((a,b)=>scoreText(b)-scoreText(a));
-  const out=[];
-  for(const seed of seeds){
-    if(out.some(x=>sentenceSimilarity(seed,x)>=6))continue;
-    const bundled=relatedBundle(seed,pool);
-    if(bundled&&sentences(bundled).length>=3&&bundled.length>=260)out.push(bundled);
-    if(out.length===5)break;
-  }
-  return out;
-}
-
-async function enrichPublic(source){
-  const discovered=await discoverBidClubUrl(source);
-  if(!discovered)return null;
-  try{
-    const page=await fetchText(discovered);
-    const text=cleanText(page.text).toLowerCase();
-    const tokens=titleTokens(source.episodeTitle).slice(0,10);
-    const matchCount=tokens.reduce((n,t)=>n+(text.includes(t)?1:0),0);
-    if(matchCount<5)return null;
-    const insights=deepTakeawaysFromHtml(page.text);
-    console.log('bidclub_enrichment',{url:page.finalUrl,matchCount,insightCount:insights.length});
-    if(insights.length){
-      return {sourceUrl:page.finalUrl,sourceName:'BidClub public transcript/summary',insights};
-    }
-  }catch(e){console.log('bidclub_fetch_error',e?.message||String(e))}
-  return null;
 }
 
 function guestFromDescription(d=''){
-  const m=d.match(/^([A-Z][A-Za-z .'-]{2,80})\s+(?:is|joins|joined|has been|was)\b/);
+  const m=String(d).match(/^([A-Z][A-Za-z .'-]{2,80})\s+(?:is|joins|joined|has been|was)\b/);
   return m?.[1]?.trim()||'';
 }
 function guestRoleFromDescription(d='',guest=''){
   if(!guest)return'';
-  const first=d.split(/(?<=[.!?])\s+/)[0]||'';
+  const first=String(d).split(/(?<=[.!?])\s+/)[0]||'';
   const esc=guest.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const m=first.match(new RegExp(`${esc}\\s+is\\s+the\\s+([^,.]+(?:,[^.]*)?)`,'i'));
   return m?.[1]?.trim()||'';
 }
 function guestContextFromDescription(d=''){
-  return d.split(/(?<=[.!?])\s+/).filter(Boolean).slice(0,3).join(' ').slice(0,700);
+  return String(d).split(/(?<=[.!?])\s+/).filter(Boolean).slice(0,3).join(' ').slice(0,700);
 }
 function bottomLine(insights=[]){
   if(!insights.length)return'';
-  const s=sentences(insights[0])[0]||insights[0];
-  return s.length>320?s.slice(0,317)+'…':s;
+  const first=declarativeSentences(insights[0])[0]||insights[0];
+  return first.length>340?first.slice(0,337)+'…':first;
 }
 
 export default async function handler(req,res){
@@ -233,8 +261,10 @@ export default async function handler(req,res){
     if(!source)throw new Error('For now, paste an Apple Podcasts episode link.');
     const guest=guestFromDescription(source.description);
     const role=guestRoleFromDescription(source.description,guest);
-    const publicSource=await enrichPublic(source);
-    const insights=publicSource?.insights||[];
+    const bidclub=await findBidClubEpisode(source,guest);
+    const insights=bidclub?buildDeepTakeaways(bidclub):[];
+    console.log('podcast_result',{guest,bidclubSlug:bidclub?.slug||'',insightCount:insights.length});
+
     return res.status(200).json({
       verified:source.verified,
       verificationNote:source.verificationNote,
@@ -252,10 +282,10 @@ export default async function handler(req,res){
       image:source.image,
       publishedDate:source.publishedDate,
       durationMs:source.durationMs,
-      transcriptFound:Boolean(source.transcript||publicSource),
-      transcriptUrl:source.transcriptUrl||publicSource?.sourceUrl||'',
-      summaryBasis:source.transcript?'publisher transcript':publicSource?'public transcript/summary':'description',
-      insightSource:publicSource?.sourceName||'',
+      transcriptFound:Boolean(source.transcript||bidclub?.transcript_md||bidclub?.transcript),
+      transcriptUrl:source.transcriptUrl||(bidclub?.slug?`https://bidclub.ai/e/${bidclub.slug}`:''),
+      summaryBasis:bidclub?'BidClub TLDR/digest/transcript':source.transcript?'publisher transcript':'description',
+      insightSource:bidclub?'BidClub API':'',
       insightsAvailable:insights.length>0,
       insightFormat:'3-5 core takeaways, minimum 3 sentences each'
     });
