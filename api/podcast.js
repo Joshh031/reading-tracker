@@ -43,7 +43,7 @@ async function resolveApple(url){
 
 function slugify(s=''){return s.toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,48).replace(/-$/,'')}
 const INSIGHT_KEYS=['%','$','billion','million','months','years','october','march','buy','short','valuation','credit','debt','margin','profit','saas','cloud','model','security','china','microsoft','meta','apple','hyperscaler','neocloud','continuous learning','open source','bubble','correction','capital','gpu','compute'];
-function scoreText(s=''){const l=s.toLowerCase();return INSIGHT_KEYS.reduce((n,k)=>n+(l.includes(k)?1:0),0)+(\d/.test(s)?2:0)}
+function scoreText(s=''){const l=s.toLowerCase();return INSIGHT_KEYS.reduce((n,k)=>n+(l.includes(k)?1:0),0)+(/\d/.test(s)?2:0)}
 function sentences(s=''){return s.split(/(?<=[.!?])\s+/).map(x=>x.trim()).filter(Boolean)}
 function isDeepTakeaway(s=''){
   const ss=sentences(s);
