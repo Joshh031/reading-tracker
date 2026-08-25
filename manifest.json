@@ -1,0 +1,17 @@
+{
+  "name": "Reading Log",
+  "short_name": "Reading Log",
+  "description": "A personal reading, podcast, language, and learning tracker.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08090b",
+  "theme_color": "#08090b",
+  "icons": [
+    {
+      "src": "/api/pwa-icon?v=2",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
