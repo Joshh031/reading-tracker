@@ -10,7 +10,23 @@ function podcastKey(p={}){
   try{const u=new URL(p.url||'');const id=u.searchParams.get('i');if(id)return `apple:${id}`}catch{}
   return `${(p.podcast||'').toLowerCase()}|${(p.episodeTitle||'').toLowerCase()}|${(p.guest||'').toLowerCase()}`;
 }
+function sanitizePodcast(p={}){
+  const identity=[p.guest,p.episodeTitle].filter(Boolean).join(' ').toLowerCase();
+  if(identity.includes('sonders')) return p;
+  const insights=Array.isArray(p.investorInsights)?p.investorInsights:[];
+  const clean=insights.filter(x=>!/^Sonders\s+(?:also\s+|focuses\s+|frames\s+)/i.test(String(x).trim()));
+  if(clean.length===insights.length) return p;
+  return {
+    ...p,
+    investorInsights:clean,
+    oneLine:clean.length?(clean[0].split(/(?<=[.!?])\s+/)[0]||''):'',
+    review:clean.length?p.review:'pending',
+    reviewNote:clean.length?p.reviewNote:'',
+    contaminationCleaned:true
+  };
+}
 function mergePodcast(a={},b={}){
+  a=sanitizePodcast(a);b=sanitizePodcast(b);
   const aInsights=Array.isArray(a.investorInsights)?a.investorInsights:[];
   const bInsights=Array.isArray(b.investorInsights)?b.investorInsights:[];
   const richer=bInsights.length>aInsights.length?b:a;
@@ -26,8 +42,8 @@ function mergePodcast(a={},b={}){
 }
 function mergePodcasts(...lists){
   const m=new Map();
-  for(const list of lists)for(const p of (Array.isArray(list)?list:[])){
-    const k=podcastKey(p);m.set(k,m.has(k)?mergePodcast(m.get(k),p):p);
+  for(const list of lists)for(const raw of (Array.isArray(list)?list:[])){
+    const p=sanitizePodcast(raw),k=podcastKey(p);m.set(k,m.has(k)?mergePodcast(m.get(k),p):p);
   }
   return [...m.values()];
 }
@@ -89,6 +105,6 @@ export default function QuickAppV8(){
   }
 
   if(recoveryMode)return <div style={{minHeight:'100vh',background:'#08090b',color:'#efeee9',padding:'28px 18px',fontFamily:'monospace'}}><div style={{maxWidth:720,margin:'0 auto'}}><div style={{color:'#d5b06a',fontSize:11,letterSpacing:2,marginBottom:8}}>READING LOG RECOVERY</div><h1 style={{fontFamily:'Georgia,serif',fontSize:30,margin:'0 0 12px'}}>Restore preview podcasts</h1><p style={{color:'#9aa1aa',lineHeight:1.6,fontSize:13}}>On the old preview, tap <b>COPY BACKUP CODE</b>. Paste that code here. The app will merge it with production and Firebase. Existing production entries will be preserved.</p><textarea value={code} onChange={e=>setCode(e.target.value)} rows={8} placeholder="Paste backup code…" style={{width:'100%',background:'#111319',color:'#eee',border:'1px solid #343a43',borderRadius:12,padding:12,fontFamily:'monospace'}}/><button onClick={recover} style={{width:'100%',marginTop:10,padding:13,border:0,borderRadius:10,background:'#d5b06a',color:'#111',fontWeight:700}}>MERGE RECOVERED DATA</button>{status&&<div style={{marginTop:12,color:status.startsWith('Recovered')?'#86cf96':'#d5b06a',fontSize:12,lineHeight:1.5}}>{status}</div>}<button onClick={()=>window.location.href='/'} style={{width:'100%',marginTop:10,padding:12,border:'1px solid #343a43',borderRadius:10,background:'#181b21',color:'#ddd'}}>OPEN READING LOG</button></div></div>;
-  if(!ready)return <div style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#08090b',color:'#777',fontFamily:'monospace'}}>SYNCING HISTORY…</div>;
+  if(!ready)return <div style={{minHeight:'100vh',display:'grid',placeItems:center;background:'#08090b',color:'#777',fontFamily:'monospace'}}>SYNCING HISTORY…</div>;
   return <QuickAppV9/>;
 }
