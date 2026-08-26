@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Reading Log" />
+  <meta name="theme-color" content="#08090b" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/api/pwa-icon?v=2" />
+  <link rel="icon" type="image/png" href="/api/pwa-icon?v=2" />
+  <title>Reading Log</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#08090b;color:#efeee9}body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;display:grid;place-items:center;padding:28px}.wrap{width:min(100%,520px);text-align:center}.icon{width:118px;height:118px;border-radius:27px;box-shadow:0 18px 48px rgba(0,0,0,.45);margin-bottom:24px}.eyebrow{font-size:11px;letter-spacing:.18em;color:#d5b06a;text-transform:uppercase;margin-bottom:12px}h1{font-family:Georgia,serif;font-size:38px;margin:0 0 12px}.sub{font-size:15px;line-height:1.55;color:#9aa1aa;margin:0 auto 26px;max-width:390px}.steps{text-align:left;background:#111319;border:1px solid #282d35;border-radius:18px;padding:18px 20px;line-height:1.6}.steps div{margin:7px 0}.num{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#d5b06a;color:#111;font-weight:700;font-size:12px;margin-right:9px}.note{font-size:12px;color:#727a85;margin-top:18px;line-height:1.55}.ready{color:#86cf96;font-size:12px;letter-spacing:.08em;margin-top:18px}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <img class="icon" src="/api/pwa-icon?v=2" alt="Reading Log icon" />
+    <div class="eyebrow">iPhone Home Screen Install</div>
+    <h1>Reading Log</h1>
+    <p class="sub">This page is intentionally stripped down for Safari Home Screen installation.</p>
+    <div class="steps">
+      <div><span class="num">1</span>Tap Safari’s Share button.</div>
+      <div><span class="num">2</span>Choose <strong>Add to Home Screen</strong>.</div>
+      <div><span class="num">3</span>Tap <strong>Add</strong>.</div>
+    </div>
+    <div class="ready">✓ INSTALL PAGE READY</div>
+    <div class="note">When you open the new Home Screen icon, it will automatically launch the full Reading Log app.</div>
+  </main>
+  <script>
+    if (window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches) {
+      window.location.replace('/');
+    }
+  </script>
+</body>
+</html>
