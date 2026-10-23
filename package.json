@@ -6,16 +6,31 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test test/*.test.js",
+    "test:live": "node scripts/live-ingestion.mjs",
+    "test:browser": "playwright test",
+    "test:firestore": "node --test test/firestore.integration.mjs"
   },
   "dependencies": {
-    "ai": "^6.0.34",
-    "firebase": "^12.2.1",
+    "cheerio": "1.1.2",
+    "fast-xml-parser": "5.11.2",
+    "firebase": "13.1.0",
+    "firebase-admin": "14.5.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "undici": "7.30.1",
+    "zod": "4.1.12"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.0.0",
-    "vite": "^4.4.0"
+    "@playwright/test": "1.58.2",
+    "@vitejs/plugin-react": "6.1.2",
+    "vite": "8.3.5"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.14.6"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
