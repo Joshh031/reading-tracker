@@ -1,13 +1,13 @@
-import { jsonModel } from "../server/providers.js";
+import { jsonModel } from "../providers.js";
 import { start, getRun } from "workflow/api";
-import { verifyDurableWorker } from "../workflows/verify.js";
+import { verifyDurableWorker } from "../../workflows/verify.js";
 // Temporary authenticated preview verification. Never enabled in production and
 // never claims persistence. Requires a separately scoped, expiring test key.
-import { authenticate, safeOrigin } from "../server/auth.js";
-import { resolveEpisode } from "../server/identity.js";
-import { discoverTranscript } from "../server/transcript.js";
-import { analyzeEpisode, indexReview } from "../server/analysis.js";
-import { problem, VaultError } from "../server/errors.js";
+import { authenticate, safeOrigin } from "../auth.js";
+import { resolveEpisode } from "../identity.js";
+import { discoverTranscript } from "../transcript.js";
+import { analyzeEpisode, indexReview } from "../analysis.js";
+import { problem, VaultError } from "../errors.js";
 export const config = { maxDuration: 300 };
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");

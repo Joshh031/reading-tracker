@@ -1,11 +1,11 @@
-import { gatewayCredential } from "../server/providers.js";
+import { gatewayCredential } from "../providers.js";
 import { waitUntil } from "@vercel/functions";
-import { continueInBackground } from "../server/background.js";
-import { scheduleEpisode } from "../server/scheduler.js";
-import { authenticate, safeOrigin } from "../server/auth.js";
-import { firestoreStore } from "../server/store.js";
-import { service, writeActions } from "../server/service.js";
-import { problem } from "../server/errors.js";
+import { continueInBackground } from "../background.js";
+import { scheduleEpisode } from "../scheduler.js";
+import { authenticate, safeOrigin } from "../auth.js";
+import { firestoreStore } from "../store.js";
+import { service, writeActions } from "../service.js";
+import { problem } from "../errors.js";
 export const config = { maxDuration: 240 };
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");

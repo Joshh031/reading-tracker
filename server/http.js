@@ -1,7 +1,7 @@
 import express from "express";
-import vault from "../api/vault.js";
-import mcp from "../api/mcp.js";
-import verify from "../api/verify.js";
+import vault from "./routes/vault.js";
+import mcp from "./routes/mcp.js";
+import verify from "./routes/verify.js";
 
 // Keep the public API unchanged while Nitro compiles the durable worker routes.
 const app = express();

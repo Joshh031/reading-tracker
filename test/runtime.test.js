@@ -11,7 +11,7 @@ test("API imports when the runtime disables CommonJS require(ESM)", () => {
       "--no-experimental-require-module",
       "--input-type=module",
       "-e",
-      "await import('./api/vault.js')",
+      "await import('./server/routes/vault.js')",
     ],
     { cwd: process.cwd() },
   );
