@@ -4,7 +4,7 @@ import LegacyApp from './QuickAppV8';
 import {buildEvidenceBrief,formatBrief} from './evidenceBrief';
 import {topicAtlas,relatedEpisodes,sourceLabel,toMarkdown} from './libraryIntelligence';
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
-const norm=p=>({podcast:p.podcast||'',episodeTitle:p.episodeTitle||'',guest:p.guest||'',url:p.url||'',takeaway1:p.takeaway1||'',takeaway2:p.takeaway2||'',description:p.description||'',topics:p.topics||[],summaryBasis:p.summaryBasis||'',insightSource:p.insightSource||'',investorInsights:Array.isArray(p.investorInsights)?p.investorInsights:[]});
+const norm=p=>({podcast:p.podcast||'',episodeTitle:p.episodeTitle||'',guest:p.guest||'',url:p.url||'',takeaway1:p.takeaway1||'',takeaway2:p.takeaway2||'',description:p.description||'',topics:p.topics||[],summaryBasis:p.summaryBasis||'',transcriptFound:Boolean(p.transcriptFound),insightSource:p.insightSource||'',investorInsights:Array.isArray(p.investorInsights)?p.investorInsights:[]});
 const key=p=>p.url?.trim().toLowerCase()||[p.podcast,p.episodeTitle].join('|').toLowerCase();
 const investorSignals=(text)=>{const s=String(text||'').toLowerCase();const positive=/\\b(bullish|upside|opportunity|beneficiar(?:y|ies)|accelerat(?:e|ion)|durable growth|underestimated|tailwind)\\b/i.test(s);const negative=/\\b(bearish|downside|skeptic|overvalued|overhyped|unsustainable|headwind|bubble|risk of|crowded trade)\\b/i.test(s);return positive&&!negative?'Positive argument':negative&&!positive?'Cautionary argument':positive&&negative?'Mixed argument':'Unclassified';};
 const anecdoteMatch=(text)=>/\\b(anecdote|story|remember|recalled|firsthand|once told|example|when I|in my experience)\\b/i.test(text||'');
