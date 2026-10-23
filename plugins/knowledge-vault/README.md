@@ -1,10 +1,13 @@
-# Connection status
+# Knowledge Vault private connection
 
-The archive workflow skill is ready for a private MCP package. Do not install a
-placeholder connection: the preview currently has Vercel protection in addition
-to the archive's own Bearer authentication. A temporary preview share URL is not
-a durable plugin endpoint and must not be packaged. Complete owner-approved
-endpoint access and verify live tool discovery before creating/installing the
-private plugin. The intended stable endpoint is the feature-branch preview's
-`/api/mcp`. GitHub reconnection and Firebase browser-key referrers also remain
-external blockers. All paid AI processing remains disabled.
+The isolated trial endpoint uses application Bearer authentication, with paid
+processing disabled. It does not require a Vercel login. Live initialization,
+ten-tool discovery, saved review retrieval, search, duplicate add and token
+revocation passed on 2026-10-23 against the free Firebase trial database.
+
+Sign in to the trial PWA, open Connections, and create a connection key. Enter
+it only in the plugin secure API-key field. Keys expire in 30 days and can be
+revoked in the PWA. No credential is included in this package. Installation and
+user connection must succeed before ordinary ChatGPT access is claimed.
+
+Private plugin: https://chatgpt.com/plugins/plugins_6adb9257bbdc8191a0261646b0ecfb79

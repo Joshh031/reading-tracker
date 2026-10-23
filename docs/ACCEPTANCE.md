@@ -72,3 +72,10 @@ This verifies persistent ingestion, transcript storage, journal retention and is
 - Paid model/transcription processing stays disabled. The other three current episodes still require accessible transcripts or a no-paid-service transcription path. Ordinary ChatGPT plugin connection is not accepted until installed/authenticated and exercised through its actual tools. Physical iPhone acceptance and cross-episode synthesis remain incomplete.
 - New expiring/revocable connector credentials have unit and actual emulator checks for hashed storage, owner isolation, expiry, scope, revocation and prohibition on credential management by connector tokens.
 
+
+### Verified private ChatGPT endpoint (2026-10-23)
+- Isolated trial preview `knowledge-vault-trial`, deployment `dpl_DffVVVwF3A4d3i1vknuZ2gKpR6aD`, commit `87527d3`, is READY. Existing production is untouched.
+- Actual MCP HTTP acceptance passed: anonymous access 401; authenticated initialize; all 10 tools discovered; saved review read; attributed search; duplicate add preserved 4 canonical episodes; revoked token 401. Acceptance tokens were revoked.
+- Meb review version 2 saved through the signed-in PWA, with improved exact source excerpts; personal reflection unchanged. Live duplicate-add notice confirmed.
+- Private plugin created: https://chatgpt.com/plugins/plugins_6adb9257bbdc8191a0261646b0ecfb79 . Package includes the verified durable endpoint and Bearer API-key configuration, with no credentials. User installation/secure key connection and a real ordinary-conversation tool call remain required; creation alone is not an end-to-end ChatGPT pass.
+- Source tests: 41 unit, 4 Firestore integration, 1 workflow, 4 browser checks passed; compiled-server smoke passed. iPhone-sized automated checks are not a physical iPhone installation test.

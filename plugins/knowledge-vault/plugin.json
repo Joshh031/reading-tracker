@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "knowledge-vault",
+  "version": "0.1.0",
+  "description": "Your private podcast archive: source-backed reviews, personal reflections, and cross-episode research.",
+  "author": {
+    "name": "Josh Hirschhorn"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Knowledge Vault",
+        "shortDescription": "Keep what you learn",
+        "longDescription": "Add podcast URLs, read complete available transcripts, save sourced reviews and personal reflections, and search your private archive. Uses the same free trial database as the PWA. Paid processing remains disabled; episodes without accessible transcripts stay blocked rather than receiving invented summaries.",
+        "developerName": "Josh Hirschhorn",
+        "category": "Productivity",
+        "capabilities": [],
+        "defaultPrompt": "Search my Knowledge Vault for insights I should remember.",
+        "brandColor": "#A7B8A0"
+      }
+    }
+  }
+}
