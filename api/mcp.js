@@ -1,3 +1,5 @@
+import {waitUntil} from '@vercel/functions';
+import {continueInBackground} from '../server/background.js';
 import { authenticate,safeOrigin } from '../server/auth.js';
 import { firestoreStore } from '../server/store.js';
 import { service,writeActions } from '../server/service.js';
@@ -27,7 +29,7 @@ export default async function handler(req,res){
     if(body.method==='tools/list')return reply({tools});
     if(body.method==='tools/call'){
       const t=tools.find(t=>t.name===body.params?.name);if(!t)return res.status(200).json({jsonrpc:'2.0',id:body.id,error:{code:-32602,message:'Unknown tool'}});
-      try{const result=await service(t.name.replace(/^vault_/,''),body.params.arguments||{},user.uid,firestoreStore());return reply({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result});}
+      try{const store=firestoreStore(),action=t.name.replace(/^vault_/,'');const result=await service(action,body.params.arguments||{},user.uid,store);if(action==='add')continueInBackground(waitUntil,store,user.uid,result.episode.id);return reply({content:[{type:'text',text:JSON.stringify(result)}],structuredContent:result});}
       catch(error){return reply({isError:true,content:[{type:'text',text:JSON.stringify(problem(error))}]});}
     }
     return res.status(200).json({jsonrpc:'2.0',id:body.id,error:{code:-32601,message:'Method not found'}});

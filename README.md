@@ -4,7 +4,7 @@ Private podcast research and listening journal. React/Vite PWA, Vercel Node API,
 
 ## Run and verify
 
-Node 24 recommended. `npm ci --ignore-scripts`, `npm test`, `npm run build`.
+Node 24 recommended. `npm ci`, `npm test`, `npm run build`.
 
 - `npm run test:live`: read-only metadata/RSS/publisher probes for the four regression episodes. Actual transcript text stays in `/tmp/knowledge-vault-live`, never in Git.
 - `npm run test:browser`: desktop and iPhone viewport checks; requires Playwright Chromium. The signed-in UI test explicitly mocks auth/API and is not proof of live sign-in.
@@ -26,7 +26,7 @@ Exact Apple episode ID → collection/direct metadata fallback → unique RSS ti
 
 VTT, SRT, plain text, JSON segments and publisher Deepgram exports preserve timestamps/speakers. Publisher Nuxt payloads are parsed as JSON references, never executed. Conflicting IDs, ambiguous RSS matches and mismatched pages are rejected. Public downloads are size/time bounded; DNS is checked and pinned, including at redirects.
 
-Jobs are persisted between stages, leased transactionally, deduplicated by canonical ID, and retain source attempts/errors/backoff. The PWA advances active jobs. `/api/mcp` exposes `vault_process`; an authenticated external worker can call `/api/vault` with `action:work` to process due jobs. **An always-on scheduler/webhook is not provisioned yet; unattended processing after closing every client needs that deployment step.** Ambiguous paid submission timeouts are held for reconciliation instead of risking duplicate charges.
+Jobs are persisted between stages, leased transactionally, deduplicated by canonical ID, and retain source attempts/errors/backoff. Adding an episode starts a bounded `waitUntil` background drain, so normal processing can continue after closing the client. The PWA also advances active jobs. `/api/mcp` exposes `vault_process`; an authenticated external worker can call `/api/vault` with `action:work` to process due jobs. **An always-on scheduler/webhook is not provisioned yet; guaranteed recovery beyond the bounded background window needs that deployment step.** Ambiguous paid submission timeouts are held for reconciliation instead of risking duplicate charges.
 
 Full reviews require likely complete transcripts. Exact quotes/segment IDs are validated, then a second model pass audits evidence. This reduces unsupported output; it does not establish that model judgments are infallible. Review data distinguishes guest claims from analyst implications and personal reflections. Risk discussion alone does not imply bearishness. Reflections retain raw text, an editable organized version, listening percentage, questions and version history.
 
@@ -49,3 +49,5 @@ Retain Firebase for this critical path. A migration cannot fix missing transcrip
 No irreversible migration has been performed. `scripts/legacy-plan.mjs` produces a deterministic inventory with source/record hashes and duplicate counts, preserving the entire source document. Rollback is redeploying the previous preview commit; legacy production data is untouched. Before any later migration: save a private export, compare record identities/counts and hashes, validate authentication/ownership, dual-read, then request cutover approval. Never commit private exports.
 
 Daily Tracker writes are disabled in preview. The production adapter requires explicit `KV_DAILY_TRACKER_ENABLED=true`, owner linkage, and a completed-listening action. It updates only the podcast points field, transactionally deduplicates canonical episodes, caps at existing 15 points/day, and preserves other tracker fields. Adding an episode does not award listening points.
+
+The install step applies a narrow dynamic-import compatibility patch for upstream `auth0/node-jwks-rsa#507` in Vercel’s loader. The supported jose version is retained; installation fails if the upstream source changes. A regression test imports the API with native require(ESM) disabled.

@@ -10,9 +10,11 @@
     "test": "node --test test/*.test.js",
     "test:live": "node scripts/live-ingestion.mjs",
     "test:browser": "playwright test",
-    "test:firestore": "node --test test/firestore.integration.mjs"
+    "test:firestore": "node --test test/firestore.integration.mjs",
+    "postinstall": "node scripts/patch-jwks.cjs"
   },
   "dependencies": {
+    "@vercel/functions": "3.10.3",
     "cheerio": "1.1.2",
     "fast-xml-parser": "5.11.2",
     "firebase": "13.1.0",
