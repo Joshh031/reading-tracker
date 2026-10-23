@@ -138,7 +138,7 @@ async function assembly(path, body) {
   if (!r.ok) throw await providerError(r);
   return r.json();
 }
-export async function submitTranscription(episode) {
+export function assertTranscriptionConfigured() {
   if (
     !process.env.ASSEMBLYAI_API_KEY ||
     process.env.KV_TRANSCRIPTION_ENABLED !== "true"
@@ -148,6 +148,9 @@ export async function submitTranscription(episode) {
       "Audio is available. Enable the bounded transcription provider to continue.",
       503,
     );
+}
+export async function submitTranscription(episode) {
+  assertTranscriptionConfigured();
   const maxSeconds = Number(process.env.KV_MAX_AUDIO_SECONDS || 7200),
     maxBytes = Number(process.env.KV_MAX_AUDIO_BYTES || 250_000_000);
   if (!episode.durationSeconds || episode.durationSeconds > maxSeconds)

@@ -3,6 +3,7 @@ import { discoverTranscript } from "./transcript.js";
 import {
   thirdPartyTranscript,
   youtubeTranscript,
+  assertTranscriptionConfigured,
   submitTranscription,
   pollTranscription,
 } from "./providers.js";
@@ -16,6 +17,7 @@ export function pipeline(store, dependencies = {}) {
     discoverTranscript,
     thirdPartyTranscript,
     youtubeTranscript,
+    assertTranscriptionConfigured,
     submitTranscription,
     pollTranscription,
     analyzeEpisode,
@@ -124,6 +126,8 @@ export function pipeline(store, dependencies = {}) {
               "A prior submission may have reached the provider. Reconcile it before resubmitting to avoid duplicate charges.",
               409,
             );
+          // Missing configuration must not consume the paid-job allowance.
+          dep.assertTranscriptionConfigured();
           await store.budget(
             uid,
             "transcriptionJobs",

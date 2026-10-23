@@ -377,7 +377,8 @@ test("worker lease prevents concurrent paid analysis", async () => {
 test("missing transcription credentials is explicit and recoverable", async () => {
   const s = memoryStore(),
     p = pipeline(s, {
-      submitTranscription: async () => {
+      assertTranscriptionConfigured: () => {},
+    submitTranscription: async () => {
         throw new VaultError(
           "TRANSCRIPTION_NOT_CONFIGURED",
           "Configure provider",
@@ -396,7 +397,8 @@ test("uncertain paid job submission is not automatically submitted twice", async
   let count = 0;
   const s = memoryStore(),
     p = pipeline(s, {
-      submitTranscription: async () => {
+      assertTranscriptionConfigured: () => {},
+    submitTranscription: async () => {
         count++;
         throw Error("network timeout after remote submission");
       },
@@ -596,6 +598,7 @@ test("definitive provider rejection permits retry while uncertain submission sta
   const s = memoryStore();
   let calls = 0;
   const p = pipeline(s, {
+    assertTranscriptionConfigured: () => {},
     submitTranscription: async () => {
       if (++calls === 1)
         throw new VaultError("PROVIDER_401", "Invalid provider key", 502);
@@ -704,4 +707,22 @@ test("research refuses uncited paragraphs and unsupported synthesis despite vali
       })),
     (e) => e.code === "BRIEF_EVIDENCE_REVIEW_FAILED",
   );
+});
+
+test("disabled transcription does not exhaust daily paid-job allowance", async () => {
+  const s = memoryStore();
+  const p = pipeline(s, {
+    assertTranscriptionConfigured() {
+      throw new VaultError("TRANSCRIPTION_NOT_CONFIGURED", "Configure provider", 503);
+    },
+  });
+  await p.add("u", apple);
+  await s.update("u", "apple-456", { metadata: episode, stage: "transcribe" });
+  for (let n = 0; n < 3; n++) {
+    const e = await p.process("u", "apple-456", { retry: n > 0 });
+    assert.equal(e.status, "needs_configuration");
+    assert.equal(e.lastError.code, "TRANSCRIPTION_NOT_CONFIGURED");
+    assert.ok(!e.submissionPending);
+  }
+  await s.budget("u", "transcriptionJobs", 1);
 });
