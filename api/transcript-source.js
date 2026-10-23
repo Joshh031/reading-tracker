@@ -25,8 +25,28 @@ export default async function handler(req,res){
  const item=matched[0];
  const transcriptTags=[...item.matchAll(/<(?:podcast:transcript|transcript)\b[^>]*>/gi)].map(m=>m[0]);
  const transcriptUrls=transcriptTags.map(t=>({url:safeUrl(attr(t,'url')),type:attr(t,'type')})).filter(x=>x.url);
+ // Publisher-supplied transcript URLs can be read by our backend when accessible.
+ // Return a bounded preview, not a copyright-sensitive full transcript dump.
+ let transcriptPreview=null;
+ if(transcriptUrls.length){
+   try{
+     const target=transcriptUrls[0];
+     const response=await fetch(target.url,{signal:AbortSignal.timeout(9000),headers:{accept:'text/plain,text/vtt,application/x-subrip,application/json,*/*'}});
+     const size=Number(response.headers.get('content-length')||0);
+     if(response.ok&&(!size||size<2000000)){
+       const raw=(await response.text()).slice(0,2000000);
+       let source=raw;
+       if(/json/i.test(target.type)){
+         try{const obj=JSON.parse(raw);source=(Array.isArray(obj)?obj:obj.segments||obj.transcript||[]).map?.(x=>typeof x==='string'?x:(x.text||x.content||'')).join(' ')||''}catch{source=''}
+       }
+       const normalized=source.replace(/WEBVTT|\\d{2}:\\d{2}:\\d{2}[.,]\\d{3}\\s*-->\\s*\\d{2}:\\d{2}:\\d{2}[.,]\\d{3}/g,' ').replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ').trim();
+       const words=normalized.split(/\\s+/).filter(Boolean);
+       if(words.length>80)transcriptPreview={available:true,wordCount:words.length,excerpt:words.slice(0,180).join(' '),format:target.type||'text',sourceUrl:target.url};
+     }
+   }catch{ /* transcript may require authentication or deny automated access */ }
+ }
  const enclosure=(item.match(/<enclosure\b[^>]*>/i)||[])[0]||'';
  const audioUrl=safeUrl(attr(enclosure,'url'));
- return res.status(200).json({status:transcriptUrls.length?'transcript_url_available':audioUrl?'audio_available_for_transcription':'no_source',episodeId,title:meta.trackName,publishedDate:meta.releaseDate||'',transcriptUrls,audioUrl,matchedBy:'exact Apple ID + exact RSS title',note:'Audio is not transcribed; third-party transcription requires permitted audio access and credentials.'});
+ return res.status(200).json({status:transcriptUrls.length?'transcript_url_available':audioUrl?'audio_available_for_transcription':'no_source',episodeId,title:meta.trackName,publishedDate:meta.releaseDate||'',transcriptUrls,transcriptPreview,audioUrl,appleTranscriptNote:'Apple Podcasts may show an in-app transcript even when no RSS transcript is available. Apple does not provide this endpoint with the in-app text.',matchedBy:'exact Apple ID + exact RSS title',note:'Audio is not transcribed; third-party transcription requires permitted audio access and credentials.'});
  }catch(e){return res.status(422).json({status:'resolution_error',error:String(e?.message||e)})}
 }
