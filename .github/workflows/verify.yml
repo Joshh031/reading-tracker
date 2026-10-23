@@ -26,6 +26,7 @@ jobs:
           VERCEL: '1'
           VERCEL_ENV: preview
           VERCEL_DEPLOYMENT_ID: dpl_ci_build
+          NITRO_PRESET: vercel
       - run: node --no-experimental-require-module scripts/verify-build.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
