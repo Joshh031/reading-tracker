@@ -3,7 +3,7 @@ import {loadCloudState,saveCloudState,syncDailyTracker} from './firebase';
 import LegacyApp from './QuickAppV8';
 import {buildEvidenceBrief,formatBrief} from './evidenceBrief';
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
-const norm=p=>({podcast:p.podcast||'',episodeTitle:p.episodeTitle||'',guest:p.guest||'',url:p.url||'',takeaway1:p.takeaway1||'',takeaway2:p.takeaway2||'',description:p.description||'',topics:p.topics||[]});
+const norm=p=>({podcast:p.podcast||'',episodeTitle:p.episodeTitle||'',guest:p.guest||'',url:p.url||'',takeaway1:p.takeaway1||'',takeaway2:p.takeaway2||'',description:p.description||'',topics:p.topics||[],summaryBasis:p.summaryBasis||'',insightSource:p.insightSource||'',investorInsights:Array.isArray(p.investorInsights)?p.investorInsights:[]});
 const key=p=>p.url?.trim().toLowerCase()||[p.podcast,p.episodeTitle].join('|').toLowerCase();
 const investorSignals=(text)=>{const s=String(text||'').toLowerCase();const positive=/\\b(bullish|upside|opportunity|beneficiar(?:y|ies)|accelerat(?:e|ion)|durable growth|underestimated|tailwind)\\b/i.test(s);const negative=/\\b(bearish|downside|skeptic|overvalued|overhyped|unsustainable|headwind|bubble|risk of|crowded trade)\\b/i.test(s);return positive&&!negative?'Positive argument':negative&&!positive?'Cautionary argument':positive&&negative?'Mixed argument':'Unclassified';};
 const anecdoteMatch=(text)=>/\\b(anecdote|story|remember|recalled|firsthand|once told|example|when I|in my experience)\\b/i.test(text||'');
@@ -13,7 +13,7 @@ export default function KnowledgeVault(){
  const [guestFilter,setGuestFilter]=useState(''),[importUrl,setImportUrl]=useState(''),[importing,setImporting]=useState(false); const [form,setForm]=useState({podcast:'',episodeTitle:'',guest:'',url:'',takeaway1:'',takeaway2:'',topics:''});
  useEffect(()=>{loadCloudState().then(s=>{setState(s||{entries:{},library:[]});setStatus('Cloud archive loaded')}).catch(()=>{setStatus('Could not access cloud archive — no data changed');setState({entries:{},library:[]})})},[]);
  const records=useMemo(()=>Object.entries(state?.entries||{}).flatMap(([date,day])=>(day.podcastEntries||[]).filter(p=>p.podcast||p.episodeTitle).map(p=>({...norm(p),date}))).sort((a,b)=>b.date.localeCompare(a.date)),[state]);
- const results=useMemo(()=>{const tokens=search.toLowerCase().split(/\s+/).filter(Boolean);return records.filter(r=>(!guestFilter||r.guest===guestFilter)&&tokens.every(t=>[r.podcast,r.episodeTitle,r.guest,r.takeaway1,r.takeaway2,r.description,(r.topics||[]).join(' ')].join(' ').toLowerCase().includes(t)))},[records,search,guestFilter]);
+ const results=useMemo(()=>{const tokens=search.toLowerCase().split(/\s+/).filter(Boolean);return records.filter(r=>(!guestFilter||r.guest===guestFilter)&&tokens.every(t=>[r.podcast,r.episodeTitle,r.guest,r.takeaway1,r.takeaway2,r.description,(r.investorInsights||[]).join(' '),(r.topics||[]).join(' ')].join(' ').toLowerCase().includes(t)))},[records,search,guestFilter]);
  const dossier=useMemo(()=>results.flatMap(r=>[r.takeaway1,r.takeaway2].filter(Boolean).map((insight,i)=>({insight,episode:r,stance:investorSignals(insight),anecdote:anecdoteMatch(insight),shareable:shareableMatch(insight),index:i}))),[results]);
  const counts=useMemo(()=>Object.fromEntries(['Positive argument','Cautionary argument','Mixed argument','Unclassified'].map(k=>[k,dossier.filter(x=>x.stance===k).length])),[dossier]);
  const brief=useMemo(()=>buildEvidenceBrief(search||guestFilter,results),[search,guestFilter,results]);
