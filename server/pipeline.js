@@ -229,9 +229,10 @@ export function pipeline(store, dependencies = {}) {
             code: error.code || "UNEXPECTED_ERROR",
           }),
         );
-        const configured = /_NOT_CONFIGURED|RULES_UNVERIFIED/.test(
-          error.code || "",
-        );
+        const configured =
+          /_NOT_CONFIGURED|RULES_UNVERIFIED|^PROVIDER_40[123]$/.test(
+            error.code || "",
+          );
         const attempts = (e.attempts || 0) + 1;
         const status = configured
           ? "needs_configuration"

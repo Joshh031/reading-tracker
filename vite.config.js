@@ -5,7 +5,15 @@ import { workflow } from "workflow/vite";
 
 export default defineConfig({
   plugins: [react(), nitro(), workflow()],
+  environments: {
+    nitro: {
+      resolve: {
+        external: ["firebase-admin", "@google-cloud/firestore", "google-gax"],
+      },
+    },
+  },
   nitro: {
+    traceDeps: ["firebase-admin", "@google-cloud/firestore", "google-gax"],
     serverDir: "./backend",
     routes: { "/api/**": { handler: "./server/http.js", format: "node" } },
     routeRules: {

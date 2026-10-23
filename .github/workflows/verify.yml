@@ -22,6 +22,11 @@ jobs:
         env:
           FIREBASE_PROJECT_ID: demo-knowledge-vault
       - run: npm run build
+        env:
+          VERCEL: '1'
+          VERCEL_ENV: preview
+          VERCEL_DEPLOYMENT_ID: dpl_ci_build
+      - run: node --no-experimental-require-module scripts/verify-build.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm audit --omit=dev --audit-level=high
