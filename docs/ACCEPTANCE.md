@@ -63,3 +63,12 @@ This verifies persistent ingestion, transcript storage, journal retention and is
 - 39 Node/API tests pass, including disabled-provider guards and review save/staleness/fabrication/version checks. Firestore emulator and durable-workflow tests pass.
 - GitHub was disconnected during this follow-up; remote publication needs reconnection. Google sign-in and a usable external MCP connection remain blocked. No production release or paid AI activation occurred.
 - Cost correction: disabling paid AI does not make the named Firebase database free. Firestore's free quota does not cover this named preview database. Live database testing is paused; existing records are preserved. A strictly zero-billing hosted trial needs a free-tier database.
+# Free trial acceptance — October 23, 2026
+
+- Separate Firebase project `knowledge-vault-trial`: Spark/no billing, default Standard database with deny-all client rules. Anonymous REST read returned 403.
+- Four canonical episode records, the 195-segment Meb transcript, and the complete exported legacy Reading Tracker document copied and read back identically. Repeat copy was idempotent. Original project and records retained. Owner UID preserved in the new Auth project.
+- Real Google sign-in succeeded in the hosted preview and survived reload. Browser showed all four current records plus five legacy podcast records.
+- A real ChatGPT-authored Meb/Vincent review was saved through the PWA's authenticated API, rendered after reload, and retrieved by the inflation question. Five developed takeaways, 12 attributed claims, five shareable insights; exact citations validated. This is not an independent audit of transcript accuracy or guest attribution.
+- Paid model/transcription processing stays disabled. The other three current episodes still require accessible transcripts or a no-paid-service transcription path. Ordinary ChatGPT plugin connection is not accepted until installed/authenticated and exercised through its actual tools. Physical iPhone acceptance and cross-episode synthesis remain incomplete.
+- New expiring/revocable connector credentials have unit and actual emulator checks for hashed storage, owner isolation, expiry, scope, revocation and prohibition on credential management by connector tokens.
+

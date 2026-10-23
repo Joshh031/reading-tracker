@@ -3,6 +3,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebaseConfig.js";
 import { signIn, vault } from "./vaultClient.js";
 import "./vault.css";
+import Connections from "./Connections.jsx";
 const busy = new Set([
   "queued",
   "discovering",
@@ -559,7 +560,7 @@ export default function VaultApp() {
         ) : (
           <>
             <nav aria-label="Archive sections">
-              {["library", "research", "reading"].map((t) => (
+              {["library", "research", "reading", "connections"].map((t) => (
                 <button
                   key={t}
                   className={tab === t ? "active" : ""}
@@ -573,13 +574,16 @@ export default function VaultApp() {
                     ? "Episode library"
                     : t === "research"
                       ? "Ask your archive"
-                      : "Reading history"}
+                      : t === "reading"
+                        ? "Reading history"
+                        : "Connections"}
                 </button>
               ))}
               <button className="quiet" disabled={working} onClick={exportData}>
                 Export backup ↓
               </button>
             </nav>
+            {!selected && tab === "connections" && <Connections />}
             {!selected && tab === "library" && (
               <>
                 <form className="intake" onSubmit={add}>

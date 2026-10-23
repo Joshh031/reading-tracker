@@ -7,6 +7,64 @@ if (!process.env.FIRESTORE_EMULATOR_HOST)
     "Run only against the Firestore emulator. Production tests are prohibited.",
   );
 process.env.FIREBASE_PROJECT_ID = "demo-knowledge-vault";
+test("Firestore-backed connector tokens enforce ownership, expiry, scope and revocation", async () => {
+  const { manageConnection } = await import("../server/connections.js");
+  const { authenticate } = await import("../server/auth.js");
+  const store = firestoreStore(),
+    uid = "connection-test-" + Date.now();
+  const previous = process.env.KV_ALLOWED_UIDS;
+  process.env.KV_ALLOWED_UIDS = uid;
+  try {
+    const key = await manageConnection(
+      "connection_create",
+      {},
+      { uid, method: "firebase" },
+      store,
+    );
+    const request = { headers: { authorization: "Bearer " + key.token } };
+    assert.equal((await authenticate(request, "write")).uid, uid);
+    await assert.rejects(
+      () => store.revokeConnection("another-user", key.id),
+      (e) => e.code === "NOT_FOUND",
+    );
+    await store.revokeConnection(uid, key.id);
+    await assert.rejects(
+      () => authenticate(request),
+      (e) => e.code === "UNAUTHENTICATED",
+    );
+    const { createHash, randomBytes } = await import("node:crypto");
+    for (const entry of [
+      {
+        uid,
+        scopes: ["read"],
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      },
+      { uid, scopes: ["read", "write"], expiresAt: "invalid" },
+      {
+        uid: "another-user",
+        scopes: ["read", "write"],
+        expiresAt: new Date(Date.now() + 60000).toISOString(),
+      },
+    ]) {
+      const token = "kv1_" + randomBytes(32).toString("hex");
+      await store.createConnection(
+        createHash("sha256").update(token).digest("hex"),
+        entry,
+      );
+      await assert.rejects(
+        () =>
+          authenticate(
+            { headers: { authorization: "Bearer " + token } },
+            "write",
+          ),
+        (e) => ["FORBIDDEN", "UNAUTHENTICATED"].includes(e.code),
+      );
+    }
+  } finally {
+    if (previous === undefined) delete process.env.KV_ALLOWED_UIDS;
+    else process.env.KV_ALLOWED_UIDS = previous;
+  }
+});
 test("Firestore persists, deduplicates, isolates users, and detects conflicting reflection edits", async () => {
   const store = firestoreStore(),
     jobs = pipeline(store),

@@ -57,6 +57,29 @@ export function firestoreStore() {
   const owner = (uid) => db.collection(root).doc(uid);
   const ref = (uid, id) => owner(uid).collection("episodes").doc(id);
   return {
+    async connection(hash) {
+      const snap = await db.collection(`${root}Connections`).doc(hash).get();
+      return snap.exists ? snap.data() : null;
+    },
+    async createConnection(hash, data) {
+      await db.collection(`${root}Connections`).doc(hash).create(data);
+    },
+    async connections(uid) {
+      const snap = await db
+        .collection(`${root}Connections`)
+        .where("uid", "==", uid)
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    },
+    async revokeConnection(uid, hash) {
+      const r = db.collection(`${root}Connections`).doc(hash);
+      return db.runTransaction(async (tx) => {
+        const s = await tx.get(r);
+        if (!s.exists || s.data().uid !== uid)
+          throw new VaultError("NOT_FOUND", "Connection not found.", 404);
+        tx.update(r, { revoked: true });
+      });
+    },
     async get(uid, id) {
       const snap = await ref(uid, id).get();
       return snap.exists ? snap.data() : null;

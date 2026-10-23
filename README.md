@@ -1,5 +1,11 @@
 # Knowledge Vault
 
+## Private ChatGPT connections
+
+The Connections tab creates a read/write archive key with a 30-day expiry. Only a verified, allowlisted Firebase login can create, list or revoke connections. The database stores a SHA-256 hash, never the key. Connector credentials cannot manage other credentials. Paste the key into the plugin's secure API-key connection field, never into chat or a source file. This does not activate paid AI processing.
+
+`scripts/trial-copy.mjs export.json ownerUid` inventories an export without network access. Adding `--apply` and setting `KV_TRIAL_KEY_FILE` performs an atomic, create-only copy into the isolated `knowledge-vault-trial` project. It validates transcript hashes and identities, refuses conflicting destinations, verifies readback and episode counts, and never deletes the source. Keep the original private export for rollback. The script preserves the exported snapshot, not revision histories omitted by the export.
+
 Private podcast research and listening journal. React/Vite PWA, Vercel Node API, Firebase Auth and server-only Firestore. Development branch: `feature/knowledge-vault-v1`. **Production is not enabled.**
 
 ## Run and verify

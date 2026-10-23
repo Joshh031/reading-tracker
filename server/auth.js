@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { getAuth } from "firebase-admin/auth";
-import { adminApp } from "./store.js";
+import { adminApp, firestoreStore } from "./store.js";
 import { VaultError } from "./errors.js";
 export async function authenticate(req, scope = "read") {
   const token = String(req.headers.authorization || "").replace(
@@ -15,6 +15,30 @@ export async function authenticate(req, scope = "read") {
     );
   const keys = JSON.parse(process.env.KV_API_KEYS_JSON || "[]");
   const hash = createHash("sha256").update(token).digest("hex");
+  if (/^kv1_[a-f0-9]{64}$/.test(token)) {
+    const entry = await firestoreStore().connection(hash);
+    if (
+      !entry ||
+      entry.revoked ||
+      !Number.isFinite(Date.parse(entry.expiresAt)) ||
+      Date.parse(entry.expiresAt) <= Date.now()
+    )
+      throw new VaultError(
+        "UNAUTHENTICATED",
+        "Connection expired or revoked. Create a new connection in the app.",
+        401,
+      );
+    const enabled = (process.env.KV_ALLOWED_UIDS || "")
+      .split(",")
+      .filter(Boolean);
+    if (!enabled.includes(entry.uid) || !entry.scopes?.includes(scope))
+      throw new VaultError(
+        "FORBIDDEN",
+        "This connection does not have the required permission.",
+        403,
+      );
+    return { uid: entry.uid, method: "api_key" };
+  }
   for (const entry of keys) {
     if (
       typeof entry.hash === "string" &&

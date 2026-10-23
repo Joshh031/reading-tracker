@@ -7,6 +7,7 @@ import { authenticate, safeOrigin } from "../auth.js";
 import { firestoreStore } from "../store.js";
 import { service, writeActions } from "../service.js";
 import { problem } from "../errors.js";
+import { manageConnection } from "../connections.js";
 export const config = { maxDuration: 240 };
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
@@ -49,6 +50,12 @@ export default async function handler(req, res) {
       );
     // Metadata diagnostics work without database access; private records never do.
     const store = action === "resolve" ? null : firestoreStore();
+    if (
+      ["connections", "connection_create", "connection_revoke"].includes(action)
+    )
+      return res
+        .status(200)
+        .json(await manageConnection(action, input, user, store));
     const result = await service(action, input, user.uid, store);
     if (["add", "process"].includes(action)) {
       try {
