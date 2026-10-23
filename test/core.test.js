@@ -15,7 +15,7 @@ import {
 } from "../server/transcript.js";
 import { validateReview } from "../server/analysis.js";
 import { pipeline } from "../server/pipeline.js";
-import { rank } from "../server/search.js";
+import { rank, legacySearchEpisodes, researchBrief } from "../server/search.js";
 import { rootCollection } from "../server/store.js";
 import { authenticate } from "../server/auth.js";
 import { service } from "../server/service.js";
@@ -543,10 +543,165 @@ test("publisher Deepgram paragraphs retain exact timing and speaker IDs", () => 
   assert.equal(parsed[0].end, 15);
 });
 
+test("Nuxt publisher payload resolves compact Apple identities without cross-show substitution", () => {
+  const data = [
+    {
+      title: 1,
+      appleEpisodeID: 2,
+      publishedAt: 3,
+      transcriptURL: 4,
+      speakers: 5,
+    },
+    episode.title,
+    "123?i=456",
+    episode.publishedAt,
+    "https://publisher.example.com/transcript.json",
+    [6],
+    { name: 7, order: 8, host: 9 },
+    "Test Guest",
+    0,
+    false,
+  ];
+  const html =
+    '<script type="application/json" id="__NUXT_DATA__">' +
+    JSON.stringify(data) +
+    "</script>";
+  const sources = embeddedTranscriptSources(html, episode);
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].speakers[0].name, "Test Guest");
+  assert.equal(sources[0].speakers[0].role, "guest");
+  assert.equal(
+    embeddedTranscriptSources(html, { ...episode, showId: "999" }).length,
+    0,
+  );
+});
 
-test('Nuxt publisher payload resolves compact Apple identities without cross-show substitution',()=>{
- const data=[{title:1,appleEpisodeID:2,publishedAt:3,transcriptURL:4,speakers:5},episode.title,'123?i=456',episode.publishedAt,'https://publisher.example.com/transcript.json',[6],{name:7,order:8,host:9},'Test Guest',0,false];
- const html='<script type="application/json" id="__NUXT_DATA__">'+JSON.stringify(data)+'</script>';
- const sources=embeddedTranscriptSources(html,episode);assert.equal(sources.length,1);assert.equal(sources[0].speakers[0].name,'Test Guest');assert.equal(sources[0].speakers[0].role,'guest');
- assert.equal(embeddedTranscriptSources(html,{...episode,showId:'999'}).length,0);
+test("a missing source keeps its diagnostic after the lease is released", async () => {
+  const s = memoryStore(),
+    p = pipeline(s, {
+      discoverTranscript: async () => ({ transcript: null, attempts: [] }),
+      thirdPartyTranscript: async () => null,
+      youtubeTranscript: async () => null,
+    });
+  await p.add("u", apple);
+  await s.update("u", "apple-456", {
+    stage: "discover",
+    metadata: { ...episode, audioUrl: null },
+  });
+  const e = await p.process("u", "apple-456");
+  assert.equal(e.status, "needs_source");
+  assert.equal(e.lastError.code, "NO_TRANSCRIPT_OR_AUDIO");
+});
+test("definitive provider rejection permits retry while uncertain submission stays protected", async () => {
+  const s = memoryStore();
+  let calls = 0;
+  const p = pipeline(s, {
+    submitTranscription: async () => {
+      if (++calls === 1)
+        throw new VaultError("PROVIDER_401", "Invalid provider key", 502);
+      return { id: "accepted-job" };
+    },
+  });
+  await p.add("u", apple);
+  await s.update("u", "apple-456", { stage: "transcribe", metadata: episode });
+  assert.equal((await p.process("u", "apple-456")).submissionPending, false);
+  const e = await p.process("u", "apple-456", { retry: true });
+  assert.equal(e.transcriptionJobId, "accepted-job");
+  assert.equal(calls, 2);
+});
+test("explicit retry recovers exhausted attempts without allowing unlimited automatic retries", async () => {
+  const s = memoryStore(),
+    p = pipeline(s, { resolveEpisode: async () => episode });
+  await p.add("u", apple);
+  await s.update("u", "apple-456", { attempts: 5, status: "failed" });
+  assert.equal((await p.process("u", "apple-456")).status, "failed");
+  const e = await p.process("u", "apple-456", { retry: true });
+  assert.equal(e.status, "discovering");
+  assert.equal(e.attempts, 0);
+});
+test("embedding failure preserves the verified review and searchable stance, and can be retried", async () => {
+  const s = memoryStore();
+  let unavailable = true;
+  const p = pipeline(s, {
+    indexReview: async () => {
+      if (unavailable)
+        throw new VaultError("PROVIDER_503", "Unavailable", 502, true);
+      return [{ text: "indexed", embedding: [1, 0] }];
+    },
+  });
+  await p.add("u", apple);
+  await s.update("u", "apple-456", {
+    stage: "index",
+    analysis: reviewFixture(),
+    metadata: episode,
+  });
+  const e = await p.process("u", "apple-456");
+  assert.equal(e.status, "ready");
+  assert.equal(e.analysis.takeaways.length, 5);
+  assert.equal(rank("infrastructure", [e])[0].stance, "not_established");
+  assert.equal(e.indexingWarning.code, "PROVIDER_503");
+  unavailable = false;
+  assert.equal(
+    (await p.process("u", "apple-456", { retry: true })).indexingWarning,
+    null,
+  );
+});
+test("original tracker notes are searchable without being promoted to guest evidence", () => {
+  const episodes = legacySearchEpisodes({
+    entries: {
+      "2026-10-23": {
+        podcastEntries: [
+          {
+            podcast: "Original show",
+            episodeTitle: "Saved episode",
+            personalNotes: "I remember electricity constraints",
+            takeaway: "AI infrastructure might benefit",
+          },
+        ],
+      },
+    },
+  });
+  const notes = rank("electricity", episodes);
+  assert.match(notes[0].basis, /personal reflection/);
+  const reviews = rank("infrastructure", episodes);
+  assert.match(reviews[0].basis, /verification unavailable/);
+  assert.equal(reviews[0].stance, "not_established");
+});
+test("research refuses uncited paragraphs and unsupported synthesis despite valid source IDs", async () => {
+  const result = {
+    query: "Who is bullish?",
+    results: [
+      {
+        text: "Guest discusses risks without a directional stance.",
+        stance: "not_established",
+      },
+    ],
+  };
+  await assert.rejects(
+    () =>
+      researchBrief(result, async () => ({
+        data: {
+          answer: "A paragraph [r1].\n\nAn unsupported assertion.",
+          citations: [{ reference: "r1" }],
+        },
+      })),
+    (e) => e.code === "INVALID_BRIEF_CITATION",
+  );
+  let calls = 0;
+  await assert.rejects(
+    () =>
+      researchBrief(result, async () => ({
+        data:
+          ++calls === 1
+            ? {
+                answer: "The guest is bearish. [r1]",
+                citations: [{ reference: "r1" }],
+              }
+            : {
+                supported: false,
+                issues: ["Risk was misclassified as bearishness."],
+              },
+      })),
+    (e) => e.code === "BRIEF_EVIDENCE_REVIEW_FAILED",
+  );
 });

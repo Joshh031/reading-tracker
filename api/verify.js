@@ -1,4 +1,6 @@
-import {jsonModel} from '../server/providers.js';
+import { jsonModel } from "../server/providers.js";
+import { start, getRun } from "workflow/api";
+import { verifyDurableWorker } from "../workflows/verify.js";
 // Temporary authenticated preview verification. Never enabled in production and
 // never claims persistence. Requires a separately scoped, expiring test key.
 import { authenticate, safeOrigin } from "../server/auth.js";
@@ -18,7 +20,39 @@ export default async function handler(req, res) {
   try {
     safeOrigin(req);
     await authenticate(req, "diagnostics");
-    if(req.body?.probe===true){const result=await jsonModel('Return JSON {"ok":true}.',{}, {maxTokens:30});return res.json({verificationOnly:true,persisted:false,model:result.model,result:result.data});}
+    if (req.body?.workflow === "start") {
+      const run = await start(verifyDurableWorker);
+      return res.json({
+        verificationOnly: true,
+        persisted: false,
+        runId: run.runId,
+      });
+    }
+    if (
+      req.body?.workflow === "status" &&
+      /^wrun_[a-zA-Z0-9]+$/.test(req.body?.runId || "")
+    ) {
+      const run = getRun(req.body.runId),
+        status = await run.status;
+      return res.json({
+        verificationOnly: true,
+        status,
+        result: status === "completed" ? await run.returnValue : null,
+      });
+    }
+    if (req.body?.probe === true) {
+      const result = await jsonModel(
+        'Return JSON {"ok":true}.',
+        {},
+        { maxTokens: 30 },
+      );
+      return res.json({
+        verificationOnly: true,
+        persisted: false,
+        model: result.model,
+        result: result.data,
+      });
+    }
     const e = await resolveEpisode(req.body?.url),
       result = await discoverTranscript(e);
     if (!result.transcript)

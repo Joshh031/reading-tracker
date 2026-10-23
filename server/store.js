@@ -49,6 +49,11 @@ export function firestoreStore() {
     process.env.FIRESTORE_DATABASE_ID || "(default)",
   );
   const root = rootCollection();
+  // A private named preview database must not hide the original default database.
+  const legacyDb = getFirestore(
+    adminApp(),
+    process.env.KV_LEGACY_DATABASE_ID || "(default)",
+  );
   const owner = (uid) => db.collection(root).doc(uid);
   const ref = (uid, id) => owner(uid).collection("episodes").doc(id);
   return {
@@ -201,7 +206,10 @@ export function firestoreStore() {
     },
     async legacy(uid) {
       if (uid !== process.env.KV_LEGACY_OWNER_UID) return null;
-      const s = await db.collection("readingTracker").doc("joshh031").get();
+      const s = await legacyDb
+        .collection("readingTracker")
+        .doc("joshh031")
+        .get();
       return s.exists ? s.data() : null;
     },
     async syncDaily(uid, id, date) {
@@ -215,6 +223,15 @@ export function firestoreStore() {
           "DAILY_TRACKER_NOT_LINKED",
           "Daily Tracker is not linked for this account.",
           403,
+        );
+      if (
+        (process.env.FIRESTORE_DATABASE_ID || "(default)") !==
+        (process.env.KV_LEGACY_DATABASE_ID || "(default)")
+      )
+        throw new VaultError(
+          "DAILY_TRACKER_DATABASE_MISMATCH",
+          "Daily Tracker synchronization requires validated records in the same database.",
+          409,
         );
       const dayRef = db.collection("dailyTracker").doc("joshh031"),
         marker = owner(uid).collection("listeningDays").doc(date);

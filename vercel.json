@@ -1,8 +1,4 @@
 {
-  "functions": {
-    "api/vault.js": {"maxDuration": 240},
-    "api/mcp.js": {"maxDuration": 240}
-  },
   "headers": [
     {"source": "/api/(.*)", "headers": [{"key": "Cache-Control", "value": "private, no-store"}]},
     {"source": "/sw.js", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},

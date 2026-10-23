@@ -4,7 +4,7 @@ import { discoverTranscript } from "./transcript.js";
 import { organizeReflection } from "./analysis.js";
 import { pipeline } from "./pipeline.js";
 import { searchArchive, researchBrief } from "./search.js";
-import { VaultError } from "./errors.js";
+import { VaultError, problem } from "./errors.js";
 export const writeActions = new Set([
   "add",
   "process",
@@ -102,7 +102,8 @@ export async function service(action, input, uid, store) {
     const r = await searchArchive(store, uid, query, { semantic });
     if (action === "research") {
       await store.budget(uid, "briefs", 20);
-      return researchBrief(r);
+      try { return await researchBrief(r); }
+      catch (error) { return {...r, answer: null, citations: [], researchError: problem(error)}; }
     }
     return r;
   }

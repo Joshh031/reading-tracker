@@ -6,15 +6,10 @@ import {
   submitTranscription,
   pollTranscription,
 } from "./providers.js";
-import { analyzeEpisode, indexReview } from "./analysis.js";
+import { analyzeEpisode, indexReview, reviewItems } from "./analysis.js";
 import { problem, VaultError } from "./errors.js";
-export const terminal = new Set([
-  "ready",
-  "needs_configuration",
-  "needs_source",
-  "needs_review",
-  "failed",
-]);
+import { terminal } from "./states.js";
+export { terminal } from "./states.js";
 export function pipeline(store, dependencies = {}) {
   const dep = {
     resolveEpisode,
@@ -56,10 +51,11 @@ export function pipeline(store, dependencies = {}) {
       let current = await store.get(uid, id);
       if (!current)
         throw new VaultError("NOT_FOUND", "Episode not found.", 404);
-      if (current.status === "ready") return current;
+      if (current.status === "ready" && !(retry && current.indexingWarning))
+        return current;
       if (terminal.has(current.status) && !retry) return current;
       if (current.nextAttemptAt > Date.now() && !retry) return current;
-      if (current.attempts >= 5)
+      if (current.attempts >= 5 && !retry)
         throw new VaultError(
           "RETRY_LIMIT",
           "Automatic retry limit reached; inspect the last error before another attempt.",
@@ -67,9 +63,15 @@ export function pipeline(store, dependencies = {}) {
         );
       const e = await store.acquire(uid, id);
       if (!e) return current;
+      // An explicit retry starts a new bounded batch; automatic retries never reset it.
+      if (retry) {
+        e.attempts = 0;
+        if (e.status === "ready" && e.indexingWarning) e.stage = "index";
+      }
       let patch = {},
         events = [...(e.events || [])];
       try {
+        if (retry) await store.budget(uid, "manualRetries", 10);
         if (e.stage === "resolve") {
           const metadata = await dep.resolveEpisode(e.url);
           patch = { metadata, status: "discovering", stage: "discover" };
@@ -140,7 +142,8 @@ export function pipeline(store, dependencies = {}) {
                 "AUDIO_SIZE_LIMIT",
                 "UNSAFE_URL",
                 "UNSAFE_ADDRESS",
-              ].includes(error.code)
+              ].includes(error.code) ||
+              /^PROVIDER_4(?!08)\d\d$/.test(error.code || "")
             )
               await store.update(uid, id, { submissionPending: false });
             throw error;
@@ -177,7 +180,12 @@ export function pipeline(store, dependencies = {}) {
           patch = { analysis, status: "indexing", stage: "index" };
         } else if (e.stage === "index") {
           const searchIndex = await dep.indexReview(e.analysis);
-          patch = { searchIndex, status: "ready", stage: "complete" };
+          patch = {
+            searchIndex,
+            status: "ready",
+            stage: "complete",
+            indexingWarning: null,
+          };
         }
         events.push({
           stage: e.stage,
@@ -187,11 +195,32 @@ export function pipeline(store, dependencies = {}) {
         await store.release(uid, id, e.lease, {
           ...patch,
           events: events.slice(-60),
-          lastError: null,
+          lastError: patch.lastError || null,
           attempts: 0,
           nextAttemptAt: patch.nextAttemptAt || 0,
         });
       } catch (error) {
+        // The verified review and full-text search remain usable when embeddings fail.
+        if (e.stage === "index" && e.analysis) {
+          await store.release(uid, id, e.lease, {
+            searchIndex: reviewItems(e.analysis),
+            status: "ready",
+            stage: "complete",
+            indexingWarning: problem(error),
+            lastError: null,
+            attempts: 0,
+            nextAttemptAt: 0,
+            events: [
+              ...events,
+              {
+                stage: "index",
+                ...problem(error),
+                at: new Date().toISOString(),
+              },
+            ].slice(-60),
+          });
+          return store.get(uid, id);
+        }
         console.error(
           JSON.stringify({
             event: "vault_processing_error",

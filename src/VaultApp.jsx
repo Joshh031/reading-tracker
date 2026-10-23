@@ -669,6 +669,17 @@ export default function VaultApp() {
                     </button>
                   </div>
                 )}
+                {selected.indexingWarning && (
+                  <div className="notice">
+                    <span>
+                      Your review is saved. Full-text search is available;
+                      semantic indexing needs another attempt.
+                    </span>
+                    <button disabled={working} onClick={retry}>
+                      Retry semantic indexing
+                    </button>
+                  </div>
+                )}
                 {selected.transcript && (
                   <div className="provenance">
                     <strong>{selected.transcript.source.quality}</strong>
@@ -763,6 +774,12 @@ export default function VaultApp() {
                 </form>
                 {search && (
                   <>
+                    {search.researchError && (
+                      <div className="notice">
+                        {search.researchError.message} Matching records are
+                        shown below.
+                      </div>
+                    )}
                     <p className="muted">
                       {search.results.length} matching claims · {search.mode}
                       {search.warning
@@ -792,11 +809,21 @@ export default function VaultApp() {
                         </span>
                         <h3>{r.title}</h3>
                         <p>{r.text}</p>
+                        <p className="muted">{r.basis}</p>
                         <small>
                           {r.show} · {date(r.publishedAt)} ·{" "}
                           {r.stance.replaceAll("_", " ")}
                         </small>
                         <Sources citations={r.citations} />
+                        {safeLink(r.url) && (
+                          <a
+                            href={safeLink(r.url)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Episode ↗
+                          </a>
+                        )}
                       </article>
                     ))}
                   </>

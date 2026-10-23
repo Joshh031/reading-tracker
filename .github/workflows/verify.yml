@@ -18,5 +18,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: npm exec --yes --package=firebase-tools@13.35.1 -- firebase emulators:exec --only firestore --project demo-knowledge-vault 'npm run test:firestore && npm run test:workflow'
+        env:
+          FIREBASE_PROJECT_ID: demo-knowledge-vault
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
       - run: npm audit --omit=dev --audit-level=high

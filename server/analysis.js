@@ -169,16 +169,23 @@ export async function analyzeEpisode(episode, transcript, model = jsonModel) {
     verification: "exact quote validation + model evidence audit",
   };
 }
-export async function indexReview(review, embed = embeddings) {
-  const items = review.claims.map((claim, i) => ({
+export function reviewItems(review) {
+  return review.claims.map((claim, i) => ({
     id: "c" + (i + 1),
+    claimTitle: claim.title,
     text: claim.text,
     topic: claim.topic,
+    subtopic: claim.subtopic || null,
     speaker: claim.speaker,
     stance: claim.stance,
+    stanceReason: claim.stanceReason,
+    horizon: claim.horizon || null,
     kind: claim.kind,
     citations: claim.citations,
   }));
+}
+export async function indexReview(review, embed = embeddings) {
+  const items = reviewItems(review);
   const vectors = await embed(
     items.map((c) => [c.speaker, c.topic, c.text].filter(Boolean).join(" ")),
   );

@@ -10,7 +10,7 @@ Node 24 recommended. `npm ci`, `npm test`, `npm run build`.
 - `npm run test:browser`: desktop and iPhone viewport checks; requires Playwright Chromium. The signed-in UI test explicitly mocks auth/API and is not proof of live sign-in.
 - `npm exec --package=firebase-tools@13.35.1 -- firebase emulators:exec --only firestore --project demo-knowledge-vault 'npm run test:firestore'`: real Firestore protocol, persistence, transactions and security rule tests in an isolated local emulator.
 
-Copy `.env.example` to `.env.local` for server development. `vite` alone serves only the frontend; use Vercel dev or deployed preview for `/api/*`.
+Copy `.env.example` to `.env.local` for server development. Vite + Nitro serve the PWA and existing `/api/*` routes together and compile the Workflow SDK's private worker. For durable-worker integration tests, run `npm run test:workflow` inside the demo Firestore emulator with `FIREBASE_PROJECT_ID=demo-knowledge-vault`.
 
 ## Data safety and activation
 
@@ -26,7 +26,9 @@ Exact Apple episode ID → collection/direct metadata fallback → unique RSS ti
 
 VTT, SRT, plain text, JSON segments and publisher Deepgram exports preserve timestamps/speakers. Publisher Nuxt payloads are parsed as JSON references, never executed. Conflicting IDs, ambiguous RSS matches and mismatched pages are rejected. Public downloads are size/time bounded; DNS is checked and pinned, including at redirects.
 
-Jobs are persisted between stages, leased transactionally, deduplicated by canonical ID, and retain source attempts/errors/backoff. Adding an episode starts a bounded `waitUntil` background drain, so normal processing can continue after closing the client. The PWA also advances active jobs. `/api/mcp` exposes `vault_process`; an authenticated external worker can call `/api/vault` with `action:work` to process due jobs. **An always-on scheduler/webhook is not provisioned yet; guaranteed recovery beyond the bounded background window needs that deployment step.** Ambiguous paid submission timeouts are held for reconciliation instead of risking duplicate charges.
+Jobs are persisted between stages, leased transactionally, deduplicated by canonical ID, and retain source attempts/errors/backoff. Adding or resuming an episode starts a Vercel Workflow. Durable sleeps handle transcription polling and retry delays after the browser closes; a deterministic hook prevents overlapping workflow runs for the same owner/episode. The private queue-triggered handler is emitted by the SDK, with deployment pinning and environment isolation. Only identifiers and processing status cross workflow boundaries; transcripts remain in Firestore. Polling is capped at 120 iterations; further retries resume the same transcription job. Explicit retries have their own daily limit. A bounded `waitUntil` fallback reports scheduling failure instead of claiming a durable run started. Ambiguous paid submission timeouts are held for reconciliation instead of risking duplicate charges; definitive provider rejections can safely retry after correction.
+
+Verified reviews remain readable and full-text searchable if embeddings fail, with a separate retryable indexing warning. Original tracker notes are included in search with their original/unverified basis. Research briefs validate every paragraph's references and undergo a second evidence audit before display. Personal notes never establish a guest's investment stance.
 
 Full reviews require likely complete transcripts. Exact quotes/segment IDs are validated, then a second model pass audits evidence. This reduces unsupported output; it does not establish that model judgments are infallible. Review data distinguishes guest claims from analyst implications and personal reflections. Risk discussion alone does not imply bearishness. Reflections retain raw text, an editable organized version, listening percentage, questions and version history.
 

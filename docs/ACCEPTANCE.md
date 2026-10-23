@@ -15,8 +15,9 @@ These identifiers exist only in regression probes, not ingestion matching logic.
 
 ## Tests completed
 
-- 28 Node tests: identities, source parsing, conflicting dates, sparse excerpts, SSRF, citation validation, duplicate/concurrent imports, processing state, reflection conflicts, stance retention, production guards, runtime imports and bounded background work. Provider-driven lifecycle tests use explicitly synthetic provider fixtures.
+- 35 Node tests: identities, source parsing, conflicting dates, sparse excerpts, SSRF, citation validation, duplicate/concurrent imports, processing state, reflection conflicts, stance retention, production guards, runtime imports, HTTP authentication/body limits, safe retry recovery, embedding failure fallback, legacy search and research evidence validation. Provider-driven lifecycle tests use explicitly synthetic provider fixtures.
 - 2 real Firestore emulator integration tests: persistence, transactional duplicate handling/leases/reflections, transcript chunks, account separation and direct unauthenticated denial.
+- 1 compiled Workflow SDK integration test with real Firestore emulator: durable pause/wake, processing completion, concurrent journal preservation, full-text indexing after unavailable embeddings and user isolation. Synthetic review fixture; no claim of real model generation.
 - 4 browser tests: desktop and iPhone-sized Chromium. Signed-in flows use auth/API fixtures; these do **not** prove live Google login or physical-iPhone Safari behavior.
 - Vite production build; zero reported dependency vulnerabilities at the last npm audit.
 - GitHub Actions passed for the deployment-runtime fix.
@@ -26,7 +27,7 @@ These identifiers exist only in regression probes, not ingestion matching logic.
 
 1. Server-side Firebase credential and a verified owner UID; Google sign-in/authorized preview domain. Configure an isolated private preview database or project. `FIRESTORE_DATABASE_ID` selects a named database; optional `VITE_FIREBASE_*` variables select a separate Auth project. Validate its client rules before setting `KV_STORAGE_RULES_VERIFIED=true`.
 2. AI Gateway requires a valid payment card on the Vercel team before servicing requests, including free credits (confirmed HTTP 403 response). Bounded speech-to-text credentials are also required. No paid provider subscription has been opened. Verify actual summaries, citation audits, embeddings and all four transcriptions after configuration.
-3. A durable scheduled worker or provider webhook for recovery after the bounded background window. `waitUntil` starts work on import and the PWA/MCP can resume persisted stages, but this is not a permanent job scheduler.
+3. Durable Vercel Workflow implementation is included and locally integration-tested. Deployed queue/sleep verification and actual private-data ingestion still need live acceptance. Workflow run IDs and episode state are persisted; no separate paid scheduler was provisioned.
 4. Install and authenticate the private ChatGPT connection only after the live storage/processing flow passes. The MCP endpoint is implemented; it is not yet an installed ordinary-chat connection.
 5. Run cross-episode real-data synthesis and physical iPhone/PWA acceptance. Validate Daily Tracker under an approved production release. Preview Daily Tracker writes remain disabled. Existing reading editing remains in the unchanged production tracker; the new preview displays legacy history and exports the original records.
 
