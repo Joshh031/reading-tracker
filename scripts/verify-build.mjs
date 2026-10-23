@@ -4,6 +4,8 @@ import { createServer } from "node:http";
 import handler from "../.vercel/output/functions/__server.func/index.mjs";
 
 // Exercise the actual deployable bundle, including Firebase's native dependency tree.
+const routes = JSON.parse(await readFile('.vercel/output/config.json', 'utf8')).routes;
+assert.ok(routes.filter(r => r.headers && !r.dest).every(r => r.continue === true), 'Header rules must not shadow the API or assets');
 const config = JSON.parse(
   await readFile(
     ".vercel/output/functions/.well-known/workflow/v1/flow.func/.vc-config.json",
