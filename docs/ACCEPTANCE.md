@@ -20,12 +20,12 @@ These identifiers exist only in regression probes, not ingestion matching logic.
 - 4 browser tests: desktop and iPhone-sized Chromium. Signed-in flows use auth/API fixtures; these do **not** prove live Google login or physical-iPhone Safari behavior.
 - Vite production build; zero reported dependency vulnerabilities at the last npm audit.
 - GitHub Actions passed for the deployment-runtime fix.
-- Deployed preview: HTTP 200 frontend/health, HTTP 401 without credentials. Real-source ingestion reached the analysis configuration gate. Live analysis and database writes are not yet accepted.
+- Deployed preview: HTTP 200 frontend/health, HTTP 401 without credentials. Real-source ingestion reached the provider; AI Gateway rejected generation because the team has no payment card. MCP initialization and all seven tool descriptions were verified live. Live analysis and database writes are not yet accepted.
 
 ## Activation dependencies and unresolved acceptance work
 
 1. Server-side Firebase credential and a verified owner UID; Google sign-in/authorized preview domain. Configure an isolated private preview database or project. `FIRESTORE_DATABASE_ID` selects a named database; optional `VITE_FIREBASE_*` variables select a separate Auth project. Validate its client rules before setting `KV_STORAGE_RULES_VERIFIED=true`.
-2. Working AI Gateway authentication/credits and bounded speech-to-text credentials. No paid provider subscription has been opened. Verify actual summaries, citation audits, embeddings and all four transcriptions after configuration.
+2. AI Gateway requires a valid payment card on the Vercel team before servicing requests, including free credits (confirmed HTTP 403 response). Bounded speech-to-text credentials are also required. No paid provider subscription has been opened. Verify actual summaries, citation audits, embeddings and all four transcriptions after configuration.
 3. A durable scheduled worker or provider webhook for recovery after the bounded background window. `waitUntil` starts work on import and the PWA/MCP can resume persisted stages, but this is not a permanent job scheduler.
 4. Install and authenticate the private ChatGPT connection only after the live storage/processing flow passes. The MCP endpoint is implemented; it is not yet an installed ordinary-chat connection.
 5. Run cross-episode real-data synthesis and physical iPhone/PWA acceptance. Validate Daily Tracker under an approved production release. Preview Daily Tracker writes remain disabled. Existing reading editing remains in the unchanged production tracker; the new preview displays legacy history and exports the original records.
