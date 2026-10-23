@@ -1,3 +1,4 @@
+import { paidProcessingEnabled } from "../processing-policy.js";
 import { gatewayCredential } from "../providers.js";
 import { waitUntil } from "@vercel/functions";
 import { continueInBackground } from "../background.js";
@@ -17,11 +18,15 @@ export default async function handler(req, res) {
       environment: process.env.VERCEL_ENV || "local",
       storageConfigured: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
       storageRulesVerified: process.env.KV_STORAGE_RULES_VERIFIED === "true",
-      analysisConfigured: Boolean(await gatewayCredential()),
+      processingMode: paidProcessingEnabled() ? "provider" : "chatgpt",
+      paidProcessingEnabled: paidProcessingEnabled(),
+      analysisConfigured:
+        paidProcessingEnabled() && Boolean(await gatewayCredential()),
       dailyTrackerConfigured:
         process.env.VERCEL_ENV === "production" &&
         process.env.KV_DAILY_TRACKER_ENABLED === "true",
       transcriptionConfigured:
+        paidProcessingEnabled() &&
         Boolean(process.env.ASSEMBLYAI_API_KEY) &&
         process.env.KV_TRANSCRIPTION_ENABLED === "true",
     });

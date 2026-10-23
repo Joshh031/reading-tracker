@@ -1,3 +1,4 @@
+import { paidProcessingEnabled } from "./processing-policy.js";
 import { embeddings, jsonModel } from "./providers.js";
 import { VaultError } from "./errors.js";
 const tokens = (s) =>
@@ -149,7 +150,7 @@ export async function searchArchive(
   ]);
   let vector = null,
     warning = null;
-  if (semantic) {
+  if (semantic && paidProcessingEnabled()) {
     try {
       await store.budget(uid, "semanticQueries", 100);
       vector = (await embeddings([query]))[0];

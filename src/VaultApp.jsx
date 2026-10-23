@@ -66,6 +66,7 @@ function Review({ review }) {
   if (!review) return null;
   return (
     <>
+      {review.verification && <p className="muted">{review.verification}</p>}
       <div className="bottom-line">
         <span className="eyebrow">Executive Bottom Line</span>
         <p>{review.executiveBottomLine.text}</p>
@@ -131,7 +132,101 @@ function Review({ review }) {
     </>
   );
 }
-function Reflection({ episode, onSave, onError }) {
+function downloadJson(name, data) {
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function ChatReview({ episode, onSave, onError }) {
+  const [draft, setDraft] = useState("");
+  const [working, setWorking] = useState(false);
+  async function prepare() {
+    setWorking(true);
+    try {
+      const packet = await vault("review_context", { id: episode.id });
+      let offset = packet.nextOffset;
+      while (offset !== null) {
+        const page = await vault("review_context", { id: episode.id, offset });
+        if (page.transcriptHash !== packet.transcriptHash)
+          throw Error("The transcript changed. Download it again.");
+        packet.segments.push(...page.segments);
+        offset = page.nextOffset;
+      }
+      packet.nextOffset = null;
+      packet.instructions +=
+        " When using this downloaded file, return JSON {id, transcriptHash, expectedVersion, review} for the listener to paste back into Knowledge Vault. Do not claim it was automatically saved.";
+      packet.id = episode.id;
+      downloadJson(episode.id + "-chatgpt-source.json", packet);
+    } catch (error) {
+      onError(error.message);
+    } finally {
+      setWorking(false);
+    }
+  }
+  async function save() {
+    setWorking(true);
+    try {
+      const data = JSON.parse(
+        draft.trim().replace(/^```(?:json)?\s*|\s*```$/g, ""),
+      );
+      if (data.id !== episode.id)
+        throw Error("This review belongs to a different episode.");
+      const result = await vault("save_review", data);
+      setDraft("");
+      onSave(result.episode);
+    } catch (error) {
+      onError(
+        error instanceof SyntaxError
+          ? "Paste the complete review JSON returned by ChatGPT."
+          : error.message,
+      );
+    } finally {
+      setWorking(false);
+    }
+  }
+  return (
+    <section className="journal">
+      <span className="eyebrow">Review with ChatGPT</span>
+      <h2>
+        {episode.analysis
+          ? "Update your saved review"
+          : "Turn the transcript into a useful review"}
+      </h2>
+      <p className="muted">
+        Download the source packet and attach it in ChatGPT. Paste its review
+        below to save it here. This makes no paid AI API calls.
+      </p>
+      <button disabled={working || !episode.transcript} onClick={prepare}>
+        {working ? "Working…" : "Download source for ChatGPT"}
+      </button>
+      <details>
+        <summary>Save a review from ChatGPT</summary>
+        <label>
+          Review JSON
+          <textarea
+            rows={6}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Paste the complete JSON review here"
+          />
+        </label>
+        <button
+          className="primary"
+          disabled={working || !draft.trim()}
+          onClick={save}
+        >
+          Save sourced review
+        </button>
+      </details>
+    </section>
+  );
+}
+function Reflection({ episode, onSave, onError, paidProcessing = false }) {
   const r = episode.reflection || { version: 0 };
   const [raw, setRaw] = useState(r.raw || ""),
     [organized, setOrganized] = useState(r.organized || ""),
@@ -198,7 +293,7 @@ function Reflection({ episode, onSave, onError }) {
       </label>
       <div className="row">
         <button disabled={working || !raw.trim()} onClick={organize}>
-          Organize my thoughts
+          {paidProcessing ? "Organize my thoughts" : "Format my notes"}
         </button>
         <button className="primary" disabled={working} onClick={save}>
           {working ? "Working…" : "Save reflection"}
@@ -691,10 +786,31 @@ export default function VaultApp() {
                     <button onClick={showTranscript}>Read transcript</button>
                   </div>
                 )}
+                {!health?.paidProcessingEnabled && selected.transcript && (
+                  <ChatReview
+                    key={
+                      selected.id +
+                      ":review:" +
+                      (selected.analysis?.version || 0)
+                    }
+                    episode={selected}
+                    onError={setNotice}
+                    onSave={(episode) => {
+                      setSelected(episode);
+                      setEpisodes((es) =>
+                        es.map((e) => (e.id === episode.id ? episode : e)),
+                      );
+                      setNotice(
+                        "Sourced review saved. Your personal reflection is unchanged.",
+                      );
+                    }}
+                  />
+                )}
                 <Review review={selected.analysis} />
                 <Reflection
                   key={selected.id + ":" + (selected.reflection?.version || 0)}
                   episode={selected}
+                  paidProcessing={health?.paidProcessingEnabled === true}
                   onError={setNotice}
                   onSave={(reflection) => {
                     setSelected((e) => ({ ...e, reflection }));
@@ -768,7 +884,11 @@ export default function VaultApp() {
                       disabled={working || !query.trim()}
                       onClick={() => runSearch(true)}
                     >
-                      {working ? "Searching…" : "Build research brief"}
+                      {working
+                        ? "Searching…"
+                        : health?.paidProcessingEnabled
+                          ? "Build research brief"
+                          : "Gather evidence for ChatGPT"}
                     </button>
                   </div>
                 </form>
@@ -786,6 +906,25 @@ export default function VaultApp() {
                         ? " · Semantic search unavailable; full-text results shown."
                         : ""}
                     </p>
+                    {search.synthesisMode === "chatgpt" && (
+                      <div className="notice">
+                        <span>
+                          These are the matching source records. Download them
+                          and ask ChatGPT to compare the arguments with
+                          attribution.
+                        </span>
+                        <button
+                          onClick={() =>
+                            downloadJson(
+                              "knowledge-vault-research.json",
+                              search,
+                            )
+                          }
+                        >
+                          Download research evidence
+                        </button>
+                      </div>
+                    )}
                     {search.answer && (
                       <div className="bottom-line">
                         <h3>Across your archive</h3>

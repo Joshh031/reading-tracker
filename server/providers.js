@@ -1,3 +1,7 @@
+import {
+  assertPaidProcessingEnabled,
+  paidProcessingEnabled,
+} from "./processing-policy.js";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { readJson, readSource, publicUrl } from "./net.js";
 import { VaultError } from "./errors.js";
@@ -12,18 +16,34 @@ export async function gatewayCredential() {
   }
 }
 async function providerError(r) {
-  let detail='';
+  let detail = "";
   try {
-    const body=await r.json();
-    const message=body.error?.message || body.message || (typeof body.error==='string'?body.error:'');
-    detail=String(message).replace(/Bearer\s+\S+|sk-[\w-]+|eyJ[\w-]+\.[\w-]+\.[\w-]+/g,'[redacted]').slice(0,400);
+    const body = await r.json();
+    const message =
+      body.error?.message ||
+      body.message ||
+      (typeof body.error === "string" ? body.error : "");
+    detail = String(message)
+      .replace(
+        /Bearer\s+\S+|sk-[\w-]+|eyJ[\w-]+\.[\w-]+\.[\w-]+/g,
+        "[redacted]",
+      )
+      .slice(0, 400);
   } catch {}
-  return new VaultError('PROVIDER_'+r.status,'Processing provider returned HTTP '+r.status+(detail?': '+detail:''),502,r.status===429||r.status>=500);
+  return new VaultError(
+    "PROVIDER_" + r.status,
+    "Processing provider returned HTTP " +
+      r.status +
+      (detail ? ": " + detail : ""),
+    502,
+    r.status === 429 || r.status >= 500,
+  );
 }
 
 // Only explicitly authorized third-party adapters are used. No scraped subscriber API.
 export async function thirdPartyTranscript(episode) {
-  if (!process.env.KV_TRANSCRIPT_ADAPTER_URL) return null;
+  if (!paidProcessingEnabled() || !process.env.KV_TRANSCRIPT_ADAPTER_URL)
+    return null;
   const base = publicUrl(process.env.KV_TRANSCRIPT_ADAPTER_URL);
   const result = await readJson(base.href, {
     method: "POST",
@@ -126,6 +146,7 @@ export async function youtubeTranscript(episode) {
   });
 }
 async function assembly(path, body) {
+  assertPaidProcessingEnabled();
   const r = await fetch("https://api.assemblyai.com/v2/" + path, {
     method: body ? "POST" : "GET",
     headers: {
@@ -139,6 +160,7 @@ async function assembly(path, body) {
   return r.json();
 }
 export function assertTranscriptionConfigured() {
+  assertPaidProcessingEnabled();
   if (
     !process.env.ASSEMBLYAI_API_KEY ||
     process.env.KV_TRANSCRIPTION_ENABLED !== "true"
@@ -209,6 +231,7 @@ export async function pollTranscription(episode, jobId) {
 }
 
 export async function jsonModel(system, input, { maxTokens = 12000 } = {}) {
+  assertPaidProcessingEnabled();
   const key = await gatewayCredential();
   if (!key)
     throw new VaultError(
@@ -250,6 +273,7 @@ export async function jsonModel(system, input, { maxTokens = 12000 } = {}) {
   };
 }
 export async function embeddings(texts) {
+  assertPaidProcessingEnabled();
   const key = await gatewayCredential();
   if (!key)
     throw new VaultError(

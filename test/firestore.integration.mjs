@@ -71,3 +71,89 @@ test("Firestore client API rejects unauthenticated archive reads", async () => {
   const response = await fetch(url);
   assert.equal(response.status, 403);
 });
+
+test("ChatGPT review persists in Firestore and preserves a concurrent journal edit", async () => {
+  const { service } = await import("../server/service.js");
+  const store = firestoreStore(),
+    uid = "chat-review-" + Date.now(),
+    id = "apple-789";
+  await pipeline(store).add(
+    uid,
+    "https://podcasts.apple.com/podcast/id123?i=789",
+  );
+  const quote = "Electricity availability can constrain new infrastructure.";
+  const t = {
+    hash: "synthetic-review-hash",
+    completeness: "likely_complete",
+    wordCount: 1000,
+    source: {
+      url: "https://example.com/fixture",
+      quality: "Synthetic test fixture",
+    },
+    segments: [{ id: "s1", text: quote, start: 10, speaker: "Fixture guest" }],
+  };
+  const meta = await store.saveTranscript(uid, id, t);
+  await store.update(uid, id, {
+    transcript: meta,
+    metadata: { title: "Synthetic episode", description: "" },
+  });
+  const point = {
+    title: "Power",
+    text: "This is a synthetic integration-test interpretation. ".repeat(5),
+    citations: [{ segmentId: "s1", quote }],
+  };
+  const review = {
+    executiveBottomLine: point,
+    takeaways: Array(5).fill(point),
+    guests: [],
+    claims: Array(5).fill({
+      ...point,
+      speaker: null,
+      topic: "Power",
+      subtopic: "Infrastructure",
+      stance: "not_established",
+      stanceReason: "Risk alone",
+      kind: "opinion",
+      horizon: null,
+    }),
+    investmentImplications: [point],
+    shareableInsights: Array(3).fill(point),
+    openQuestions: [],
+    topics: ["Power"],
+    limitations: ["Synthetic test"],
+  };
+  const payload = { id, transcriptHash: t.hash, expectedVersion: 0, review };
+  const original = store.transcript.bind(store);
+  store.transcript = async (...args) => {
+    const result = await original(...args);
+    await store.saveReflection(
+      uid,
+      id,
+      {
+        raw: "Concurrent listening note",
+        organized: "",
+        questions: [],
+        listenedPercent: 50,
+      },
+      0,
+    );
+    store.transcript = original;
+    return result;
+  };
+  await service("save_review", payload, uid, store);
+  const reopened = firestoreStore();
+  assert.equal(
+    (await reopened.get(uid, id)).reflection.raw,
+    "Concurrent listening note",
+  );
+  assert.equal(
+    (await service("save_review", payload, uid, reopened)).episode.analysis
+      .version,
+    1,
+  );
+  assert.equal((await reopened.get(uid, id)).searchIndex.length, 5);
+  await assert.rejects(
+    () => service("save_review", payload, uid + "-other", reopened),
+    (e) => e.code === "NOT_FOUND",
+  );
+});

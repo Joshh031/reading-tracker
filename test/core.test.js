@@ -325,6 +325,7 @@ test("real service lifecycle resolves, retrieves, analyzes, indexes, and retains
   const s = memoryStore(),
     review = reviewFixture();
   const p = pipeline(s, {
+    paidProcessingEnabled: () => true,
     resolveEpisode: async () => episode,
     discoverTranscript: async () => ({ transcript, attempts: [] }),
     analyzeEpisode: async () => review,
@@ -358,6 +359,7 @@ test("worker lease prevents concurrent paid analysis", async () => {
   let count = 0;
   const s = memoryStore(),
     p = pipeline(s, {
+      paidProcessingEnabled: () => true,
       analyzeEpisode: async () => {
         count++;
         await new Promise((r) => setTimeout(r, 20));
@@ -377,8 +379,9 @@ test("worker lease prevents concurrent paid analysis", async () => {
 test("missing transcription credentials is explicit and recoverable", async () => {
   const s = memoryStore(),
     p = pipeline(s, {
+      paidProcessingEnabled: () => true,
       assertTranscriptionConfigured: () => {},
-    submitTranscription: async () => {
+      submitTranscription: async () => {
         throw new VaultError(
           "TRANSCRIPTION_NOT_CONFIGURED",
           "Configure provider",
@@ -397,8 +400,9 @@ test("uncertain paid job submission is not automatically submitted twice", async
   let count = 0;
   const s = memoryStore(),
     p = pipeline(s, {
+      paidProcessingEnabled: () => true,
       assertTranscriptionConfigured: () => {},
-    submitTranscription: async () => {
+      submitTranscription: async () => {
         count++;
         throw Error("network timeout after remote submission");
       },
@@ -581,6 +585,7 @@ test("Nuxt publisher payload resolves compact Apple identities without cross-sho
 test("a missing source keeps its diagnostic after the lease is released", async () => {
   const s = memoryStore(),
     p = pipeline(s, {
+      paidProcessingEnabled: () => true,
       discoverTranscript: async () => ({ transcript: null, attempts: [] }),
       thirdPartyTranscript: async () => null,
       youtubeTranscript: async () => null,
@@ -598,6 +603,7 @@ test("definitive provider rejection permits retry while uncertain submission sta
   const s = memoryStore();
   let calls = 0;
   const p = pipeline(s, {
+    paidProcessingEnabled: () => true,
     assertTranscriptionConfigured: () => {},
     submitTranscription: async () => {
       if (++calls === 1)
@@ -614,7 +620,10 @@ test("definitive provider rejection permits retry while uncertain submission sta
 });
 test("explicit retry recovers exhausted attempts without allowing unlimited automatic retries", async () => {
   const s = memoryStore(),
-    p = pipeline(s, { resolveEpisode: async () => episode });
+    p = pipeline(s, {
+      paidProcessingEnabled: () => true,
+      resolveEpisode: async () => episode,
+    });
   await p.add("u", apple);
   await s.update("u", "apple-456", { attempts: 5, status: "failed" });
   assert.equal((await p.process("u", "apple-456")).status, "failed");
@@ -626,6 +635,7 @@ test("embedding failure preserves the verified review and searchable stance, and
   const s = memoryStore();
   let unavailable = true;
   const p = pipeline(s, {
+    paidProcessingEnabled: () => true,
     indexReview: async () => {
       if (unavailable)
         throw new VaultError("PROVIDER_503", "Unavailable", 502, true);
@@ -712,8 +722,13 @@ test("research refuses uncited paragraphs and unsupported synthesis despite vali
 test("disabled transcription does not exhaust daily paid-job allowance", async () => {
   const s = memoryStore();
   const p = pipeline(s, {
+    paidProcessingEnabled: () => true,
     assertTranscriptionConfigured() {
-      throw new VaultError("TRANSCRIPTION_NOT_CONFIGURED", "Configure provider", 503);
+      throw new VaultError(
+        "TRANSCRIPTION_NOT_CONFIGURED",
+        "Configure provider",
+        503,
+      );
     },
   });
   await p.add("u", apple);
@@ -725,4 +740,117 @@ test("disabled transcription does not exhaust daily paid-job allowance", async (
     assert.ok(!e.submissionPending);
   }
   await s.budget("u", "transcriptionJobs", 1);
+});
+
+test("default ingestion stops for ChatGPT review without calling a model or consuming analysis quota", async () => {
+  const s = memoryStore();
+  const p = pipeline(s, {
+    paidProcessingEnabled: () => false,
+    resolveEpisode: async () => episode,
+    discoverTranscript: async () => ({ transcript, attempts: [] }),
+    analyzeEpisode: async () => {
+      throw Error("Paid model must not be called");
+    },
+  });
+  await p.add("u", apple);
+  for (let n = 0; n < 3; n++) await p.process("u", "apple-456");
+  assert.equal((await s.get("u", "apple-456")).status, "awaiting_review");
+  await s.budget("u", "analyses", 1);
+  assert.deepEqual((await service("work", {}, "u", s)).episodes, []);
+});
+
+test("ChatGPT review saves, retries idempotently, preserves notes and rejects stale or fabricated evidence", async () => {
+  const s = memoryStore();
+  await pipeline(s).add("u", apple);
+  const meta = await s.saveTranscript("u", "apple-456", transcript);
+  await s.update("u", "apple-456", { metadata: episode, transcript: meta });
+  await s.saveReflection(
+    "u",
+    "apple-456",
+    { raw: "My partial recollection", listenedPercent: 50 },
+    0,
+  );
+  const context = await service("review_context", { id: "apple-456" }, "u", s);
+  assert.equal(context.totalSegments, transcript.segments.length);
+  assert.equal(context.expectedVersion, 0);
+  const input = {
+    id: "apple-456",
+    transcriptHash: context.transcriptHash,
+    expectedVersion: 0,
+    review: reviewFixture(),
+  };
+  const result = await service("save_review", input, "u", s);
+  assert.equal(result.episode.status, "ready");
+  assert.equal(result.episode.analysis.version, 1);
+  assert.equal(result.episode.analysis.origin, "chatgpt");
+  assert.equal(result.episode.reflection.raw, "My partial recollection");
+  assert.equal(
+    (await service("save_review", input, "u", s)).episode.analysis.version,
+    1,
+  );
+  const different = structuredClone(input);
+  different.review.takeaways[0].text += " Another interpretation.";
+  await assert.rejects(
+    () => service("save_review", different, "u", s),
+    (e) => e.code === "REVIEW_CONFLICT",
+  );
+  await assert.rejects(
+    () => service("save_review", { ...input, transcriptHash: "wrong" }, "u", s),
+    (e) => e.code === "TRANSCRIPT_CHANGED",
+  );
+  const fabricated = structuredClone(input);
+  fabricated.review.claims[0].citations[0].quote =
+    "This fabricated quote does not exist.";
+  await assert.rejects(
+    () => service("save_review", fabricated, "u", s),
+    (e) => e.code === "INVALID_CITATION",
+  );
+  await assert.rejects(
+    () => service("review_context", { id: "apple-456" }, "other", s),
+    (e) => e.code === "NOT_FOUND",
+  );
+  const search = await service("research", { query: "electricity" }, "u", s);
+  assert.equal(search.synthesisMode, "chatgpt");
+  assert.ok(search.results.length > 0);
+  assert.match(search.results[0].basis, /not independently audited/);
+  assert.equal((await s.get("u", "apple-456")).lease, null);
+});
+
+test("all paid provider entry points fail closed with credentials present", async () => {
+  const { jsonModel, embeddings, submitTranscription, thirdPartyTranscript } =
+    await import("../server/providers.js");
+  const envKeys = [
+    "KV_PAID_PROCESSING_ENABLED",
+    "AI_GATEWAY_API_KEY",
+    "ASSEMBLYAI_API_KEY",
+    "KV_TRANSCRIPTION_ENABLED",
+  ];
+  const old = Object.fromEntries(envKeys.map((k) => [k, process.env[k]]));
+  process.env.KV_PAID_PROCESSING_ENABLED = "false";
+  process.env.AI_GATEWAY_API_KEY = "synthetic-do-not-use";
+  process.env.ASSEMBLYAI_API_KEY = "synthetic-do-not-use";
+  process.env.KV_TRANSCRIPTION_ENABLED = "true";
+  try {
+    for (const run of [
+      () => jsonModel("test", {}),
+      () => embeddings(["test"]),
+      () => submitTranscription(episode),
+    ])
+      await assert.rejects(run, (e) => e.code === "PAID_PROCESSING_DISABLED");
+    assert.equal(await thirdPartyTranscript(episode), null);
+    const s = memoryStore();
+    const organized = await service(
+      "organize",
+      { raw: " I only listened to half. " },
+      "u",
+      s,
+    );
+    assert.equal(organized.organized, "I only listened to half.");
+    assert.equal(organized.method, "format_only");
+  } finally {
+    for (const key of envKeys) {
+      if (old[key] === undefined) delete process.env[key];
+      else process.env[key] = old[key];
+    }
+  }
 });

@@ -1,3 +1,6 @@
+import { paidProcessingEnabled } from "./processing-policy.js";
+import { reviewContext, saveChatReview } from "./chat-review.js";
+import { terminal } from "./states.js";
 import { z } from "zod";
 import { resolveEpisode } from "./identity.js";
 import { discoverTranscript } from "./transcript.js";
@@ -6,6 +9,7 @@ import { pipeline } from "./pipeline.js";
 import { searchArchive, researchBrief } from "./search.js";
 import { VaultError, problem } from "./errors.js";
 export const writeActions = new Set([
+  "save_review",
   "add",
   "process",
   "reflect",
@@ -21,6 +25,9 @@ export function publicEpisode(e) {
 }
 export async function service(action, input, uid, store) {
   const jobs = pipeline(store);
+  if (action === "review_context") return reviewContext(store, uid, input);
+  if (action === "save_review")
+    return { episode: publicEpisode(await saveChatReview(store, uid, input)) };
   if (action === "resolve") {
     const { url } = z.object({ url: z.string().url() }).parse(input);
     const episode = await resolveEpisode(url);
@@ -100,10 +107,27 @@ export async function service(action, input, uid, store) {
       })
       .parse(input);
     const r = await searchArchive(store, uid, query, { semantic });
+    if (action === "research" && !paidProcessingEnabled())
+      return {
+        ...r,
+        answer: null,
+        citations: [],
+        synthesisMode: "chatgpt",
+        instructions:
+          "Synthesize these records in this conversation. Attribute every conclusion to the returned episode and source. Distinguish listener memory and unverified interpretations from guest statements. State evidence gaps. Do not infer bearishness from risk discussion alone.",
+      };
     if (action === "research") {
       await store.budget(uid, "briefs", 20);
-      try { return await researchBrief(r); }
-      catch (error) { return {...r, answer: null, citations: [], researchError: problem(error)}; }
+      try {
+        return await researchBrief(r);
+      } catch (error) {
+        return {
+          ...r,
+          answer: null,
+          citations: [],
+          researchError: problem(error),
+        };
+      }
     }
     return r;
   }
@@ -111,6 +135,14 @@ export async function service(action, input, uid, store) {
     const { raw } = z
       .object({ raw: z.string().min(1).max(12000) })
       .parse(input);
+    if (!paidProcessingEnabled())
+      return {
+        organized: raw.trim().replace(/\r\n/g, "\n"),
+        questions: [],
+        method: "format_only",
+        message:
+          "Original wording preserved. Ask ChatGPT to organize the ideas without adding facts.",
+      };
     await store.budget(uid, "reflectionEdits", 30);
     return organizeReflection(raw);
   }
@@ -163,13 +195,7 @@ export async function service(action, input, uid, store) {
     const candidates = (await store.list(uid))
       .filter(
         (e) =>
-          ![
-            "ready",
-            "failed",
-            "needs_configuration",
-            "needs_review",
-            "needs_source",
-          ].includes(e.status) &&
+          !terminal.has(e.status) &&
           (!e.nextAttemptAt || e.nextAttemptAt <= Date.now()),
       )
       .slice(0, 2);

@@ -53,3 +53,13 @@ On the deployed preview with real Firebase storage:
 - Legacy history loaded with four dated entries. No legacy record, production rule, production environment variable or production branch was changed.
 
 This verifies persistent ingestion, transcript storage, journal retention and isolation, not successful generation of a model review. Semantic synthesis, live Google login, the ordinary-chat connection and physical-iPhone acceptance remain incomplete.
+
+## ChatGPT-first follow-up (no paid AI)
+
+- Default provider guard prevents model, embedding, paid-adapter and speech-to-text requests even when credentials exist. Public sources remain available.
+- Complete source retrieval stops at `awaiting_review`. ChatGPT review context is paginated with schema, evidence instructions, source provenance and transcript hash.
+- Review saves are scoped, source-validated, versioned, retry-idempotent and lease-protected. Personal reflections are preserved. No independent semantic audit is claimed for conversation-written reviews.
+- PWA source-packet download and review import are tested in desktop and iPhone-sized Chromium with explicit transport/auth fixtures. The test checks all source pages are downloaded and a saved journal survives review import.
+- 39 Node/API tests pass, including disabled-provider guards and review save/staleness/fabrication/version checks. Firestore emulator and durable-workflow tests pass.
+- GitHub was disconnected during this follow-up; remote publication needs reconnection. Google sign-in and a usable external MCP connection remain blocked. No production release or paid AI activation occurred.
+- Cost correction: disabling paid AI does not make the named Firebase database free. Firestore's free quota does not cover this named preview database. Live database testing is paused; existing records are preserved. A strictly zero-billing hosted trial needs a free-tier database.

@@ -46,6 +46,7 @@ test("mobile library, duplicate response, journal, and source-backed search cont
     }),
   );
   let saved = null;
+  const contextOffsets = [];
   const episode = {
     id: "apple-456",
     url: "https://podcasts.apple.com/podcast/id123?i=456",
@@ -64,6 +65,11 @@ test("mobile library, duplicate response, journal, and source-backed search cont
       listenedPercent: null,
       version: 0,
     },
+    transcript: {
+      source: { quality: "Synthetic fixture", retrievedAt: "2026-10-23" },
+      wordCount: 1000,
+      completeness: "likely_complete",
+    },
     events: [],
     lastError: { message: "Fixture provider is not configured." },
   };
@@ -77,7 +83,28 @@ test("mobile library, duplicate response, journal, and source-backed search cont
     else if (data.action === "legacy") out = { legacy: null };
     else if (data.action === "add") out = { created: !saved, episode };
     else if (data.action === "get") out = { episode };
-    else if (data.action === "reflect") {
+    else if (data.action === "review_context") {
+      contextOffsets.push(data.offset || 0);
+      out = {
+        episode: { id: episode.id },
+        transcriptHash: "fixture-hash",
+        expectedVersion: 0,
+        instructions: "Synthetic fixture instructions.",
+        segments: [
+          { id: data.offset ? "s2" : "s1", text: "Synthetic source." },
+        ],
+        nextOffset: data.offset ? null : 60,
+      };
+    } else if (data.action === "save_review") {
+      episode.analysis = {
+        ...data.review,
+        version: 1,
+        verification:
+          "Exact citation text checked; interpretation not independently audited.",
+      };
+      episode.status = "ready";
+      out = { episode };
+    } else if (data.action === "reflect") {
       saved = data;
       episode.reflection = { ...data, version: 1 };
       out = { reflection: episode.reflection };
@@ -126,6 +153,49 @@ test("mobile library, duplicate response, journal, and source-backed search cont
     "Personal reflection saved",
   );
   expect(saved.listenedPercent).toBe(50);
+  const downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download source for ChatGPT" })
+    .click();
+  const download = await downloadPromise;
+  const { readFile } = await import("node:fs/promises");
+  const packet = JSON.parse(await readFile(await download.path(), "utf8"));
+  expect(packet.segments).toHaveLength(2);
+  expect(contextOffsets).toEqual([0, 60]);
+  await page.getByText("Save a review from ChatGPT", { exact: true }).click();
+  await page.getByLabel("Review JSON", { exact: true }).fill(
+    JSON.stringify({
+      id: episode.id,
+      transcriptHash: "fixture-hash",
+      expectedVersion: 0,
+      review: {
+        executiveBottomLine: {
+          text: "Synthetic saved executive review",
+          citations: [],
+        },
+        takeaways: [],
+        guests: [],
+        claims: [],
+        investmentImplications: [],
+        shareableInsights: [],
+        openQuestions: [],
+        limitations: [],
+      },
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Save sourced review", exact: true })
+    .click();
+  await expect(
+    page.getByText("Synthetic saved executive review"),
+  ).toBeVisible();
+  await expect(page.getByLabel("Rough thoughts")).toHaveValue(
+    "I only listened to half. The power discussion stood out.",
+  );
+  await expect(
+    page.getByText(/interpretation not independently audited/),
+  ).toBeVisible();
+
   await page
     .getByRole("button", { name: "Ask your archive", exact: true })
     .click();

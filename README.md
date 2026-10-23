@@ -31,7 +31,7 @@ Jobs are persisted between stages, leased transactionally, deduplicated by canon
 
 Verified reviews remain readable and full-text searchable if embeddings fail, with a separate retryable indexing warning. Original tracker notes are included in search with their original/unverified basis. Research briefs validate every paragraph's references and undergo a second evidence audit before display. Personal notes never establish a guest's investment stance.
 
-Full reviews require likely complete transcripts. Exact quotes/segment IDs are validated, then a second model pass audits evidence. This reduces unsupported output; it does not establish that model judgments are infallible. Review data distinguishes guest claims from analyst implications and personal reflections. Risk discussion alone does not imply bearishness. Reflections retain raw text, an editable organized version, listening percentage, questions and version history.
+Full reviews require likely complete transcripts. In opt-in provider mode, exact quotes/segment IDs are validated, then a second model pass audits evidence. This reduces unsupported output; it does not establish that model judgments are infallible. Review data distinguishes guest claims from analyst implications and personal reflections. Risk discussion alone does not imply bearishness. Reflections retain raw text, an editable organized version, listening percentage, questions and version history.
 
 ## Providers and cost limits
 
@@ -39,9 +39,33 @@ AI Gateway uses Vercel OIDC or `AI_GATEWAY_API_KEY`. Model IDs were verified aga
 
 YouTube captions require an OAuth token authorized for the video; the implementation does not scrape private captions or bypass access controls. Apple in-app transcript availability does not imply public API access.
 
+## ChatGPT processing mode (default)
+
+`KV_PAID_PROCESSING_ENABLED` defaults to false. Model generation, embeddings,
+third-party paid transcript adapters and speech-to-text are blocked before any
+provider request, even when credentials or Vercel OIDC are available. Public
+transcript discovery continues. Complete transcripts stop at `awaiting_review`;
+missing transcripts stop at `needs_source`. This gate prevents AI API charges,
+not hosting/database charges. The existing named Firebase preview database is
+outside Firestore's free quota; a strictly zero-billing hosted trial needs a
+free-tier database before further live archive tests. Existing data is retained.
+
+Use `vault_review_context` repeatedly through `nextOffset:null`, write the review
+in the ChatGPT conversation, then call `vault_save_review` with the transcript hash
+and expected review version. Saves validate schema, exact quotes and source
+freshness, use a transaction lease, reject conflicting versions, preserve the
+personal journal and immediately build full-text search. Identical retries do
+not create a new review version. The PWA also supports downloading a complete
+ChatGPT source packet and pasting back review JSON while the connector is pending.
+
+ChatGPT-written reviews are labeled: exact citation text was checked, but meaning
+and attribution have not undergone an independent model audit. Full-episode
+reviews require likely complete transcripts. Research returns evidence for
+synthesis inside ChatGPT; note formatting preserves the user's wording.
+
 ## API and ChatGPT
 
-`POST /api/vault` with Bearer auth and JSON `{action, ...fields}`. Actions: add, get, list, process, transcript, search, research, reflect, organize, legacy, export, sync_daily, work. GET reports configuration presence only. Streamable HTTP MCP endpoint: `POST /api/mcp`. Private read/write tools use the same store as the PWA. Connection installation/authentication remains a separate live verification step; a deployed endpoint alone does not mean ordinary ChatGPT conversations are connected.
+`POST /api/vault` with Bearer auth and JSON `{action, ...fields}`. Actions: add, get, list, process, transcript, review_context, save_review, search, research, reflect, organize, legacy, export, sync_daily, work. GET reports configuration presence only. Streamable HTTP MCP endpoint: `POST /api/mcp`. Private read/write tools use the same store as the PWA. Connection installation/authentication remains a separate live verification step; a deployed endpoint alone does not mean ordinary ChatGPT conversations are connected.
 
 `/api/verify` is an optional preview-only, expiring diagnostics-key harness for live source/model verification without database writes. It is off by default and cannot run in production.
 

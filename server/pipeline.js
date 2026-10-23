@@ -1,3 +1,4 @@
+import { paidProcessingEnabled } from "./processing-policy.js";
 import { appleIdentity, resolveEpisode } from "./identity.js";
 import { discoverTranscript } from "./transcript.js";
 import {
@@ -13,6 +14,7 @@ import { terminal } from "./states.js";
 export { terminal } from "./states.js";
 export function pipeline(store, dependencies = {}) {
   const dep = {
+    paidProcessingEnabled,
     resolveEpisode,
     discoverTranscript,
     thirdPartyTranscript,
@@ -119,6 +121,16 @@ export function pipeline(store, dependencies = {}) {
                     retryable: true,
                   },
                 };
+        } else if (e.stage === "transcribe" && !dep.paidProcessingEnabled()) {
+          patch = {
+            status: "needs_source",
+            lastError: {
+              code: "TRANSCRIPT_REQUIRED",
+              message:
+                "No complete public transcript was found. A transcript is needed to continue; paid transcription is off.",
+              retryable: false,
+            },
+          };
         } else if (e.stage === "transcribe") {
           if (e.submissionPending && !e.transcriptionJobId)
             throw new VaultError(
@@ -173,6 +185,8 @@ export function pipeline(store, dependencies = {}) {
             const meta = await store.saveTranscript(uid, id, transcript);
             patch = { transcript: meta, status: "analyzing", stage: "analyze" };
           }
+        } else if (e.stage === "analyze" && !dep.paidProcessingEnabled()) {
+          patch = { status: "awaiting_review" };
         } else if (e.stage === "analyze") {
           await store.budget(
             uid,
@@ -183,7 +197,9 @@ export function pipeline(store, dependencies = {}) {
             analysis = await dep.analyzeEpisode(e.metadata, transcript);
           patch = { analysis, status: "indexing", stage: "index" };
         } else if (e.stage === "index") {
-          const searchIndex = await dep.indexReview(e.analysis);
+          const searchIndex = dep.paidProcessingEnabled()
+            ? await dep.indexReview(e.analysis)
+            : reviewItems(e.analysis);
           patch = {
             searchIndex,
             status: "ready",

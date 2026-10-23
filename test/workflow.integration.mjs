@@ -62,6 +62,6 @@ test("durable workflow wakes after a saved delay and preserves the review when e
   const reopened = await firestoreStore().get(uid, id);
   expect(reopened.reflection.raw).toContain("Updated listener note");
   expect(reopened.searchIndex[0].stance).toBe("not_established");
-  expect(reopened.indexingWarning.code).toBe("SEMANTIC_NOT_CONFIGURED");
+  expect(reopened.indexingWarning).toBeNull();
   expect(await store.get(uid + "-other", id)).toBeNull();
 });
