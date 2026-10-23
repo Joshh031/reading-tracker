@@ -27,7 +27,9 @@ jobs:
           VERCEL_ENV: preview
           VERCEL_DEPLOYMENT_ID: dpl_ci_build
           NITRO_PRESET: vercel
-      - run: node --no-experimental-require-module scripts/verify-build.mjs
+      - run: npm exec --yes --package=firebase-tools@13.35.1 -- firebase emulators:exec --only firestore --project demo-knowledge-vault 'node --no-experimental-require-module scripts/verify-build.mjs'
+        env:
+          FIREBASE_PROJECT_ID: demo-knowledge-vault
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm audit --omit=dev --audit-level=high

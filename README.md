@@ -8,6 +8,7 @@ Node 24 recommended. `npm ci`, `npm test`, `npm run build`.
 
 - `npm run test:live`: read-only metadata/RSS/publisher probes for the four regression episodes. Actual transcript text stays in `/tmp/knowledge-vault-live`, never in Git.
 - `npm run test:browser`: desktop and iPhone viewport checks; requires Playwright Chromium. The signed-in UI test explicitly mocks auth/API and is not proof of live sign-in.
+- `VERCEL=1 VERCEL_ENV=preview VERCEL_DEPLOYMENT_ID=dpl_local NITRO_PRESET=vercel npm run build`, then `node --no-experimental-require-module scripts/verify-build.mjs`: test the actual deployable server and private worker configuration. Running the latter inside the demo Firestore emulator also verifies authenticated persistence through the compiled HTTP API.
 - `npm exec --package=firebase-tools@13.35.1 -- firebase emulators:exec --only firestore --project demo-knowledge-vault 'npm run test:firestore'`: real Firestore protocol, persistence, transactions and security rule tests in an isolated local emulator.
 
 Copy `.env.example` to `.env.local` for server development. Vite + Nitro serve the PWA and existing `/api/*` routes together and compile the Workflow SDK's private worker. For durable-worker integration tests, run `npm run test:workflow` inside the demo Firestore emulator with `FIREBASE_PROJECT_ID=demo-knowledge-vault`.
