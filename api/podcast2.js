@@ -1,1 +1,1 @@
-export {default} from './podcast.js';
+export { default } from "./podcast.js";

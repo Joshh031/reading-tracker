@@ -1,7 +1,7 @@
 {
-  "name": "Reading Log",
-  "short_name": "Reading Log",
-  "description": "A personal reading, podcast, language, and learning tracker.",
+  "name": "Knowledge Vault",
+  "short_name": "Vault",
+  "description": "A private archive of podcast insights, evidence, and personal reflections.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#08090b",
@@ -13,5 +13,6 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "id": "/"
 }
