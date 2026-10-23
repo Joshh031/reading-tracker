@@ -1,3 +1,4 @@
+import {gatewayCredential} from '../server/providers.js';
 import {waitUntil} from '@vercel/functions';
 import {continueInBackground} from '../server/background.js';
 import { authenticate,safeOrigin } from '../server/auth.js';
@@ -8,7 +9,7 @@ export const config={maxDuration:240};
 export default async function handler(req,res){
   res.setHeader('Cache-Control','private, no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
-  if(req.method==='GET')return res.status(200).json({service:'Knowledge Vault',version:2,environment:process.env.VERCEL_ENV||'local',storageConfigured:Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),storageRulesVerified:process.env.KV_STORAGE_RULES_VERIFIED==='true',analysisConfigured:Boolean(process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN),dailyTrackerConfigured:process.env.VERCEL_ENV==='production'&&process.env.KV_DAILY_TRACKER_ENABLED==='true',transcriptionConfigured:Boolean(process.env.ASSEMBLYAI_API_KEY)&&process.env.KV_TRANSCRIPTION_ENABLED==='true'});
+  if(req.method==='GET')return res.status(200).json({service:'Knowledge Vault',version:2,environment:process.env.VERCEL_ENV||'local',storageConfigured:Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),storageRulesVerified:process.env.KV_STORAGE_RULES_VERIFIED==='true',analysisConfigured:Boolean(await gatewayCredential()),dailyTrackerConfigured:process.env.VERCEL_ENV==='production'&&process.env.KV_DAILY_TRACKER_ENABLED==='true',transcriptionConfigured:Boolean(process.env.ASSEMBLYAI_API_KEY)&&process.env.KV_TRANSCRIPTION_ENABLED==='true'});
   if(req.method!=='POST')return res.status(405).json({error:{code:'METHOD_NOT_ALLOWED',message:'POST required'}});
   try{
     safeOrigin(req);const body=typeof req.body==='string'?JSON.parse(req.body):req.body||{};

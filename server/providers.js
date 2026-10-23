@@ -1,7 +1,9 @@
+import {getVercelOidcToken} from '@vercel/oidc';
 import { readJson,readSource,publicUrl } from './net.js';
 import { VaultError } from './errors.js';
 import { normalize } from './identity.js';
 import { parseTranscript,transcriptRecord } from './transcript.js';
+export async function gatewayCredential(){if(process.env.AI_GATEWAY_API_KEY)return process.env.AI_GATEWAY_API_KEY;try{return await getVercelOidcToken();}catch{return null;}}
 const providerError=(r)=>new VaultError('PROVIDER_'+r.status,'Processing provider returned HTTP '+r.status,502,r.status===429||r.status>=500);
 
 // Only explicitly authorized third-party adapters are used. No scraped subscriber API.
@@ -49,14 +51,14 @@ export async function pollTranscription(episode,jobId) {
 }
 
 export async function jsonModel(system,input,{maxTokens=12000}={}) {
-  const key=process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN;
+  const key=await gatewayCredential();
   if(!key)throw new VaultError('ANALYSIS_NOT_CONFIGURED','AI Gateway credentials are required for transcript analysis.',503);
   const r=await fetch('https://ai-gateway.vercel.sh/v1/chat/completions',{method:'POST',headers:{authorization:'Bearer '+key,'content-type':'application/json'},body:JSON.stringify({model:process.env.KV_ANALYSIS_MODEL||'openai/gpt-4.1-mini',temperature:.2,max_tokens:maxTokens,response_format:{type:'json_object'},messages:[{role:'system',content:system},{role:'user',content:JSON.stringify(input)}]}),signal:AbortSignal.timeout(60_000)});
   if(!r.ok)throw providerError(r);const result=await r.json();if(result.choices?.[0]?.finish_reason==='length')throw new VaultError('ANALYSIS_TRUNCATED','Analysis exceeded its output limit.',502,true);
   return {data:JSON.parse(result.choices[0].message.content),usage:result.usage,model:result.model};
 }
 export async function embeddings(texts) {
-  const key=process.env.AI_GATEWAY_API_KEY||process.env.VERCEL_OIDC_TOKEN;if(!key)throw new VaultError('SEMANTIC_NOT_CONFIGURED','Semantic search requires AI Gateway.',503);
+  const key=await gatewayCredential();if(!key)throw new VaultError('SEMANTIC_NOT_CONFIGURED','Semantic search requires AI Gateway.',503);
   const r=await fetch('https://ai-gateway.vercel.sh/v1/embeddings',{method:'POST',headers:{authorization:'Bearer '+key,'content-type':'application/json'},body:JSON.stringify({model:'openai/text-embedding-3-small',input:texts,dimensions:256}),signal:AbortSignal.timeout(45_000)});
   if(!r.ok)throw providerError(r);const d=await r.json();return d.data.sort((a,b)=>a.index-b.index).map(x=>x.embedding);
 }

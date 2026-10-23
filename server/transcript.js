@@ -29,9 +29,9 @@ export function parseTranscript(raw,type='') {
 export function transcriptRecord(segments,episode,source) {
   const text=segments.map(s=>s.text).join('\n'),wordCount=text.split(/\s+/).filter(Boolean).length;
   if(wordCount<200)throw new VaultError('TRANSCRIPT_TOO_SHORT','Source contains fewer than 200 words; it cannot support a full review.');
-  const timed=segments.filter(s=>s.end!=null);const maxEnd=Math.max(0,...timed.map(s=>s.end));
+  const timed=segments.filter(s=>Number.isFinite(s.start)&&Number.isFinite(s.end)&&s.end>s.start).sort((a,b)=>a.start-b.start);let covered=0,last=0;for(const segment of timed){covered+=Math.max(0,segment.end-Math.max(last,segment.start));last=Math.max(last,segment.end);}
   const expected=episode.durationSeconds||0;
-  const coverage=expected?(maxEnd?Math.min(1,maxEnd/expected):Math.min(1,wordCount/(expected/60*90))):null;
+  const coverage=expected?(timed.length?Math.min(1,covered/expected):Math.min(1,wordCount/(expected/60*90))):null;
   return {version:1,segments,wordCount,hash:digest(text),source:{...source,retrievedAt:new Date().toISOString()},coverage,completeness:coverage==null?'unknown':coverage>=.75?'likely_complete':'partial',episodeId:episode.episodeId};
 }
 export function embeddedTranscriptSources(html,episode) {
@@ -45,7 +45,7 @@ export function embeddedTranscriptSources(html,episode) {
       const url=deref(item.transcriptURL||item.transcriptUrl||item.transcript_url);
       const title=deref(item.title||item.name),apple=deref(item.appleEpisodeID||item.appleEpisodeId),publishedAt=deref(item.publishedAt||item.datePublished);
       if(typeof url!=='string'||!/^https:\/\//.test(url))continue;
-      const exact=String(apple).endsWith('i='+episode.episodeId);
+      let exact=String(apple)===episode.episodeId;try{exact=exact||new URL(String(apple)).searchParams.get('i')===episode.episodeId;}catch{}
       if(apple&&!exact)continue;
       if(!exact&&!(normalize(title)===normalize(episode.title)&&Math.abs(Date.parse(publishedAt)-Date.parse(episode.publishedAt))<=36*3600_000))continue;
       const speakers=array(deref(item.speakers)).map(ref=>{const s=deref(ref);return s?{name:deref(s.name),order:deref(s.order),role:deref(s.host)?'host':'guest'}:null;}).filter(s=>s&&typeof s.name==='string'&&Number.isInteger(s.order));
@@ -83,14 +83,19 @@ export async function discoverTranscript(episode,io={readSource}) {
       const episodeWords=normalize(episode.title).split(' ').filter(t=>t.length>3);
       const matched=episodeWords.filter(t=>pageTitle.includes(t)).length/Math.max(1,episodeWords.length);
       const pageAppleLinks=$('a[href]').map((_,el)=>$(el).attr('href')).get().filter(h=>h.includes('podcasts.apple.com')&&h.includes('i='));
-      const exactLink=pageAppleLinks.some(h=>{try{return new URL(h).searchParams.get('i')===episode.episodeId}catch{return false}});
-      if(!exactLink&&matched<.65){
+      const pageIds=[...new Set(pageAppleLinks.map(h=>{try{return new URL(h).searchParams.get('i')}catch{return null}}).filter(Boolean))];
+      const exactLink=pageIds.length===1&&pageIds[0]===episode.episodeId;
+      const embedded=embeddedTranscriptSources(r.text,episode);
+      const published=$('meta[property="article:published_time"],meta[itemprop="datePublished"]').attr('content')||$('time[datetime]').first().attr('datetime');
+      const dateConflict=published&&Math.abs(Date.parse(published)-Date.parse(episode.publishedAt))>36*3600_000;
+      const strongTitle=matched>=.9&&!dateConflict&&pageIds.length<=1&&(!pageIds.length||exactLink);
+      if(!exactLink&&!embedded.length&&!strongTitle){
         // Publisher index -> exact episode, bounded to links already on that page.
         const candidates=$('a[href]').map((_,el)=>({url:$(el).attr('href'),text:normalize($(el).text())})).get().filter(x=>episodeWords.filter(t=>x.text.includes(t)).length/Math.max(1,episodeWords.length)>.65).slice(0,3);
         for(const c of candidates){const next=new URL(c.url,r.url);if(next.protocol==='https:'&&next.hostname===new URL(r.url).hostname)pages.push(next.href);}
         throw new VaultError('PUBLISHER_IDENTITY_MISMATCH','Publisher page does not identify the exact episode.');
       }
-      for(const source of embeddedTranscriptSources(r.text,episode)){
+      for(const source of embedded){
         const body=await io.readSource(source.url,{maxBytes:6_000_000});
         const segments=parseTranscript(body.text,source.type).map(segment=>{const order=Number(segment.speaker?.match(/^Speaker (\d+)$/)?.[1]),speaker=source.speakers.find(s=>s.order===order);return speaker?{...segment,speaker:speaker.name,speakerRole:speaker.role}:segment;});
         return {transcript:transcriptRecord(segments,episode,{url:body.url,kind:'publisher_embedded',quality:source.speakers.length?'publisher-hosted machine transcript with publisher speaker mapping':'publisher-hosted machine transcript; speaker IDs unverified',identityBasis:'Verified publisher page + episode-matched embedded transcript URL'}),attempts};

@@ -48,3 +48,16 @@ test('reflection edits detect conflicting versions and never change analysis',as
 test('search retains topic-specific stance and provenance',()=>{const e={id:'apple-456',url:apple,metadata:episode,searchIndex:[{id:'c1',text:'Power constraints create risks to AI infrastructure.',speaker:'A guest',topic:'AI infrastructure',stance:'not_established',embedding:[1,0],citations:[{segmentId:'s1'}]}]};const r=rank('AI infrastructure',[e],[1,0]);assert.equal(r[0].stance,'not_established');assert.equal(r[0].episodeId,'apple-456');assert.equal(r[0].citations[0].segmentId,'s1');});
 test('preview storage cannot target production',()=>{const old=process.env.VERCEL_ENV;process.env.VERCEL_ENV='preview';assert.equal(rootCollection(),'knowledgeVaultPreviewUsers');process.env.VERCEL_ENV='production';assert.throws(()=>rootCollection(),e=>e.code==='PRODUCTION_DISABLED');if(old)process.env.VERCEL_ENV=old;else delete process.env.VERCEL_ENV;});
 test('private archive requires credentials',async()=>{await assert.rejects(()=>authenticate({headers:{}}),e=>e.status===401);});
+
+test('a short late excerpt is not mistaken for a complete timed transcript',()=>{
+ const segments=Array.from({length:10},(_,i)=>({id:'s'+i,start:3500+i*2,end:3502+i*2,text:('Example words from a short excerpt. ').repeat(5)}));
+ assert.equal(transcriptRecord(segments,{...episode,durationSeconds:3600},{url:'https://example.com'}).completeness,'partial');
+});
+test('publisher transcript from a conflicting date is rejected',async()=>{
+ const html=`<h1>${episode.title}</h1><meta property="article:published_time" content="2025-01-01"><div id="transcript">${('Source words from an old episode. ').repeat(100)}</div>`;
+ const result=await discoverTranscript({...episode,publisherUrl:'https://example.com/old'},{readSource:async()=>({text:html,url:'https://example.com/old'})});assert.equal(result.transcript,null);
+});
+test('publisher Deepgram paragraphs retain exact timing and speaker IDs',()=>{
+ const raw={results:{channels:[{alternatives:[{paragraphs:{paragraphs:[{speaker:2,start:5,end:15,sentences:[{text:'The exact source words.'}]}]}}]}]}};
+ const parsed=parseTranscript(JSON.stringify(raw),'json');assert.equal(parsed[0].text,'The exact source words.');assert.equal(parsed[0].speaker,'Speaker 2');assert.equal(parsed[0].start,5);assert.equal(parsed[0].end,15);
+});
