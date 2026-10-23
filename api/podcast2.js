@@ -36,8 +36,15 @@ async function resolveApple(url){
   const data=await fetchJson(`https://itunes.apple.com/lookup?id=${encodeURIComponent(ids.collection)}&entity=podcastEpisode&limit=200&country=US`);
   const results=Array.isArray(data?.results)?data.results:[];
   const show=results.find(x=>x.wrapperType==='collection'||x.kind==='podcast')||{};
-  const episode=results.find(x=>String(x.trackId||'')===ids.episode&&x.kind==='podcast-episode');
-  if(!episode) throw new Error('Apple returned the show, but not this exact episode.');
+  let episode=results.find(x=>String(x.trackId||'')===ids.episode&&x.kind==='podcast-episode');
+  // High-volume feeds exceed the collection lookup limit. Resolve the exact
+  // track ID directly rather than falling back to a neighboring episode.
+  if(!episode){
+    const direct=await fetchJson('https://itunes.apple.com/lookup?id='+encodeURIComponent(ids.episode)+'&country=US');
+    episode=(direct.results||[]).find(x=>String(x.trackId||'')===ids.episode&&x.kind==='podcast-episode');
+  }
+  if(!episode) throw new Error('Exact Apple episode ID not found. No metadata inferred from adjacent episodes.');
+  if(episode.collectionId&&String(episode.collectionId)!==ids.collection)throw new Error('Episode and show identifiers do not match.');
   return {
     verified:true,
     verificationNote:'Matched directly to the Apple Podcasts episode ID.',
