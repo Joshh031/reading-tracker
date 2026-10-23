@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.nitro/
+.output/
+.workflow-data/
+.workflow-vitest/
+.env*
+!.env.example
+.vercel/
+coverage/
+test-results/
+playwright-report/
+*.local.json
+*-debug.log
+/.swc
