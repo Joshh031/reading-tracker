@@ -1,3 +1,4 @@
+import {jsonModel} from '../server/providers.js';
 // Temporary authenticated preview verification. Never enabled in production and
 // never claims persistence. Requires a separately scoped, expiring test key.
 import { authenticate, safeOrigin } from "../server/auth.js";
@@ -17,6 +18,7 @@ export default async function handler(req, res) {
   try {
     safeOrigin(req);
     await authenticate(req, "diagnostics");
+    if(req.body?.probe===true){const result=await jsonModel('Return JSON {"ok":true}.',{}, {maxTokens:30});return res.json({verificationOnly:true,persisted:false,model:result.model,result:result.data});}
     const e = await resolveEpisode(req.body?.url),
       result = await discoverTranscript(e);
     if (!result.transcript)

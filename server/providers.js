@@ -11,13 +11,15 @@ export async function gatewayCredential() {
     return null;
   }
 }
-const providerError = (r) =>
-  new VaultError(
-    "PROVIDER_" + r.status,
-    "Processing provider returned HTTP " + r.status,
-    502,
-    r.status === 429 || r.status >= 500,
-  );
+async function providerError(r) {
+  let detail='';
+  try {
+    const body=await r.json();
+    const message=body.error?.message || body.message || (typeof body.error==='string'?body.error:'');
+    detail=String(message).replace(/Bearer\s+\S+|sk-[\w-]+|eyJ[\w-]+\.[\w-]+\.[\w-]+/g,'[redacted]').slice(0,400);
+  } catch {}
+  return new VaultError('PROVIDER_'+r.status,'Processing provider returned HTTP '+r.status+(detail?': '+detail:''),502,r.status===429||r.status>=500);
+}
 
 // Only explicitly authorized third-party adapters are used. No scraped subscriber API.
 export async function thirdPartyTranscript(episode) {
@@ -133,7 +135,7 @@ async function assembly(path, body) {
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(30_000),
   });
-  if (!r.ok) throw providerError(r);
+  if (!r.ok) throw await providerError(r);
   return r.json();
 }
 export async function submitTranscription(episode) {
@@ -229,7 +231,7 @@ export async function jsonModel(system, input, { maxTokens = 12000 } = {}) {
     }),
     signal: AbortSignal.timeout(60_000),
   });
-  if (!r.ok) throw providerError(r);
+  if (!r.ok) throw await providerError(r);
   const result = await r.json();
   if (result.choices?.[0]?.finish_reason === "length")
     throw new VaultError(
@@ -265,7 +267,7 @@ export async function embeddings(texts) {
     }),
     signal: AbortSignal.timeout(45_000),
   });
-  if (!r.ok) throw providerError(r);
+  if (!r.ok) throw await providerError(r);
   const d = await r.json();
   return d.data.sort((a, b) => a.index - b.index).map((x) => x.embedding);
 }

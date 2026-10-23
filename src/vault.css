@@ -483,3 +483,9 @@ footer {
     display: none;
   }
 }
+
+.authenticated .hero { padding: 26px 0 20px; }
+.authenticated .hero h1 { font-size: clamp(28px, 4vw, 42px); margin: 12px 0 0; line-height: 1.15; }
+.authenticated .hero h1 br { display: none; }
+.authenticated .hero h1 em { margin-left: .22em; }
+.authenticated .hero p { display: none; }

@@ -407,7 +407,7 @@ export default function VaultApp() {
     episodes.flatMap((e) => (e.analysis?.guests || []).map((g) => g.name)),
   );
   return (
-    <div className="shell">
+    <div className={user ? "shell authenticated" : "shell"}>
       <header>
         <a className="brand" href="/">
           ✦ <span>KNOWLEDGE VAULT</span>
